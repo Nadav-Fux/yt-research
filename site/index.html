@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0b1a">
+  <title>YT Research</title>
+  <link rel="icon" href="assets/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+  <a href="#main" class="skip-link">Skip to content</a>
+
+  <header class="header">
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">
+          <rect x="2" y="3" width="20" height="18" rx="3" fill="#ef4444" opacity=".85"/>
+          <polygon points="10,8 10,16 16,12" fill="#fff"/>
+        </svg>
+        <span class="logo-text">YT Research</span>
+      </a>
+      <div class="header-actions">
+        <span id="count" class="count" title="Total videos">0</span>
+        <div class="export-dropdown">
+          <button id="export-btn" class="export-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            Export
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <div id="export-menu" class="export-menu" hidden>
+            <button data-format="json">Export JSON</button>
+            <button data-format="csv">Export CSV</button>
+            <button data-format="txt">Export All Transcripts (.txt)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <label for="search" class="sr-only">Search videos</label>
+      <input type="search" id="search" class="search-input" placeholder="Search videos..." autocomplete="off">
+
+      <nav id="topics" class="cat-nav" aria-label="Topics"></nav>
+      <nav id="channels" class="channel-nav" aria-label="Channels"></nav>
+    </aside>
+
+    <main class="main" id="main">
+      <div id="filters" class="filters" hidden></div>
+      <div id="sort-bar" class="sort-bar">
+        <span id="result-info" class="result-info"></span>
+        <div class="sort-controls">
+          <label for="sort-select" class="sr-only">Sort by</label>
+          <select id="sort-select" class="sort-select">
+            <option value="date">Newest</option>
+            <option value="views">Most Viewed</option>
+            <option value="likes">Most Liked</option>
+            <option value="duration">Longest</option>
+            <option value="words">Most Words</option>
+          </select>
+        </div>
+      </div>
+      <div id="cards" class="cards" aria-live="polite"></div>
+      <div id="empty" class="empty" hidden>
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" opacity=".3" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <p class="empty-title">No videos found</p>
+        <p class="empty-sub">Try adjusting your search or filters</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- Detail drawer -->
+  <div id="drawer" class="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <div class="drawer-backdrop" id="drawer-backdrop"></div>
+    <div class="drawer-panel" id="drawer-panel">
+      <button id="drawer-close" class="drawer-close" type="button" aria-label="Close">&times;</button>
+      <div id="drawer-head" class="drawer-head"></div>
+      <div id="drawer-body" class="drawer-body"></div>
+      <button id="drawer-scroll-top" class="drawer-scroll-top" type="button" aria-label="Scroll to top">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 12V4M4 7l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

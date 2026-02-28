@@ -1,0 +1,12 @@
+name = "yt-research-api"
+main = "src/worker.js"
+compatibility_date = "2026-02-28"
+account_id = "5bf57396a7de9b1331d2ed6093af01c9"
+
+[[r2_buckets]]
+binding = "DATA_BUCKET"
+bucket_name = "yt-research-data"
+
+# Secrets (set via wrangler secret put):
+# GROQ_API_KEY
+# INGEST_TOKEN
