@@ -3,6 +3,7 @@ import { handleListVideos, handleGetVideo } from './handlers/videos.js';
 import { handleSummarize } from './handlers/summarize.js';
 import { handleIngest } from './handlers/ingest.js';
 import { handleExport } from './handlers/export.js';
+import { handleScrape } from './handlers/scrape.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -42,6 +43,11 @@ export default {
         return await handleExport(request, env);
       }
 
+      // --- Route: POST /api/scrape ---
+      if (method === 'POST' && pathname === '/api/scrape') {
+        return await handleScrape(request, env);
+      }
+
       // --- Health check ---
       if (method === 'GET' && (pathname === '/' || pathname === '/health')) {
         return new Response(
@@ -71,6 +77,7 @@ export default {
             'GET  /api/videos/:id',
             'POST /api/summarize',
             'POST /api/ingest',
+            'POST /api/scrape',
             'GET  /api/export',
           ],
         }),

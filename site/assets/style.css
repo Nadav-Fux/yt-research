@@ -56,6 +56,22 @@ body.drawer-open { overflow: hidden; }
 
 /* ── Category / Topic nav ── */
 .cat-nav, .channel-nav { margin-top: 16px; display: flex; flex-direction: column; gap: 2px; }
+/* ── Scrape section ── */
+.scrape-section { margin-top: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.scrape-label { display: block; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: 6px; }
+.scrape-row { display: flex; gap: 6px; }
+.scrape-row .search-input { flex: 1; min-width: 0; }
+.scrape-btn { flex-shrink: 0; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: var(--accent); border: none; border-radius: 8px; color: #fff; cursor: pointer; transition: opacity .15s; }
+.scrape-btn:hover { opacity: .85; }
+.scrape-btn:disabled { opacity: .4; cursor: not-allowed; }
+.scrape-status { margin-top: 8px; font-size: .8rem; padding: 8px 10px; border-radius: 6px; line-height: 1.4; }
+.scrape-status.loading { background: rgba(6,182,212,.1); color: var(--accent2); }
+.scrape-status.success { background: rgba(34,197,94,.1); color: var(--green); }
+.scrape-status.error { background: rgba(239,68,68,.1); color: var(--accent); }
+.scrape-refresh-btn { background: none; border: 1px solid currentColor; color: inherit; padding: 2px 10px; border-radius: 4px; font: inherit; font-size: .75rem; cursor: pointer; margin-left: 4px; opacity: .8; }
+.scrape-refresh-btn:hover { opacity: 1; }
+
+/* ── Category / Topic nav ── */
 .cat-nav::before { content: 'Topics'; display: block; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: 6px; }
 .channel-nav::before { content: 'Channels'; display: block; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: 6px; margin-top: 8px; }
 .cat-btn, .channel-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; border: none; background: none; color: var(--text-dim); font: inherit; font-size: .85rem; border-radius: 6px; cursor: pointer; text-align: left; transition: all .15s; }

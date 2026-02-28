@@ -47,6 +47,17 @@
       <label for="search" class="sr-only">Search videos</label>
       <input type="search" id="search" class="search-input" placeholder="Search videos..." autocomplete="off">
 
+      <div class="scrape-section">
+        <label for="scrape-topic" class="scrape-label">New Scrape</label>
+        <div class="scrape-row">
+          <input type="text" id="scrape-topic" class="search-input" placeholder="e.g. openclaw, ai agents..." autocomplete="off">
+          <button id="scrape-btn" class="scrape-btn" type="button" title="Scrape YouTube for this topic">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+        </div>
+        <div id="scrape-status" class="scrape-status" hidden></div>
+      </div>
+
       <nav id="topics" class="cat-nav" aria-label="Topics"></nav>
       <nav id="channels" class="channel-nav" aria-label="Channels"></nav>
     </aside>

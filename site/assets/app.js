@@ -70,6 +70,9 @@ var $dPanel   = $('drawer-panel');
 var $dScrollTop = $('drawer-scroll-top');
 var $exportBtn  = $('export-btn');
 var $exportMenu = $('export-menu');
+var $scrapeTopic = $('scrape-topic');
+var $scrapeBtn   = $('scrape-btn');
+var $scrapeStatus = $('scrape-status');
 
 /* ── Boot ── */
 function init() {
@@ -510,6 +513,14 @@ function wireEvents() {
     });
   });
 
+  // Scrape button
+  if ($scrapeBtn && $scrapeTopic) {
+    $scrapeBtn.addEventListener('click', startScrape);
+    $scrapeTopic.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') startScrape();
+    });
+  }
+
   // Drawer scroll-to-top
   if ($dPanel && $dScrollTop) {
     $dPanel.addEventListener('scroll', function() {
@@ -520,4 +531,79 @@ function wireEvents() {
       $dPanel.scrollTo({ top: 0, behavior: 'smooth' });
     });
   }
+}
+
+/* ── Scrape ── */
+function startScrape() {
+  var topic = $scrapeTopic.value.trim();
+  if (!topic) { $scrapeTopic.focus(); return; }
+
+  $scrapeBtn.disabled = true;
+  $scrapeStatus.hidden = false;
+  $scrapeStatus.className = 'scrape-status loading';
+  $scrapeStatus.innerHTML = '<span class="spinner"></span> Scraping YouTube for "' + esc(topic) + '"... This takes 2-4 minutes.';
+
+  fetch(API + '/scrape', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic: topic })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.error) throw new Error(data.error);
+    $scrapeStatus.className = 'scrape-status success';
+    $scrapeStatus.innerHTML = 'Scrape started for "' + esc(topic) + '". New videos will appear in a few minutes. <button class="scrape-refresh-btn" type="button">Refresh now</button>';
+    $scrapeBtn.disabled = false;
+
+    // Auto-refresh after 3 minutes
+    var refreshTimer = setTimeout(function() { refreshData(); }, 180000);
+
+    // Manual refresh button
+    var refreshBtn = $scrapeStatus.querySelector('.scrape-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function() {
+        clearTimeout(refreshTimer);
+        refreshData();
+      });
+    }
+  })
+  .catch(function(err) {
+    $scrapeStatus.className = 'scrape-status error';
+    $scrapeStatus.textContent = 'Failed: ' + (err.message || 'Unknown error');
+    $scrapeBtn.disabled = false;
+  });
+}
+
+function refreshData() {
+  $scrapeStatus.className = 'scrape-status loading';
+  $scrapeStatus.innerHTML = '<span class="spinner"></span> Refreshing...';
+
+  fetch(API + '/videos')
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var oldCount = allVideos.length;
+      allVideos = data.videos || [];
+      channels = data.channels || {};
+      var newCount = allVideos.length;
+      var diff = newCount - oldCount;
+
+      buildTopics();
+      buildChannels();
+      render();
+
+      if (diff > 0) {
+        $scrapeStatus.className = 'scrape-status success';
+        $scrapeStatus.textContent = diff + ' new video' + (diff > 1 ? 's' : '') + ' added! Total: ' + newCount;
+        showToast(diff + ' new videos added!');
+      } else {
+        $scrapeStatus.className = 'scrape-status loading';
+        $scrapeStatus.innerHTML = 'No new videos yet. Scrape may still be running. <button class="scrape-refresh-btn" type="button">Try again</button>';
+        var btn = $scrapeStatus.querySelector('.scrape-refresh-btn');
+        if (btn) btn.addEventListener('click', refreshData);
+      }
+    })
+    .catch(function() {
+      $scrapeStatus.className = 'scrape-status error';
+      $scrapeStatus.textContent = 'Failed to refresh data';
+    });
 }
