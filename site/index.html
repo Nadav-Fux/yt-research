@@ -26,6 +26,10 @@
         <span class="logo-text">YT Research</span>
       </a>
       <div class="header-actions">
+        <div class="view-toggle" id="view-toggle">
+          <button class="view-toggle-btn active" data-view="cards" type="button">Cards</button>
+          <button class="view-toggle-btn" data-view="reader" type="button">Reader</button>
+        </div>
         <span id="count" class="count" title="Total videos">0</span>
         <div class="export-dropdown">
           <button id="export-btn" class="export-btn" type="button" aria-haspopup="true" aria-expanded="false">
@@ -84,6 +88,20 @@
         </svg>
         <p class="empty-title">No videos found</p>
         <p class="empty-sub">Try adjusting your search or filters</p>
+      </div>
+      <div id="reader-view" class="reader-view" hidden>
+        <div class="reader-progress" id="reader-progress" hidden>
+          <div class="reader-progress-bar" id="reader-progress-bar"></div>
+          <span class="reader-progress-text" id="reader-progress-text">Loading transcripts...</span>
+        </div>
+        <div class="reader-search-bar" id="reader-search-bar" hidden>
+          <input type="search" id="reader-search" class="reader-search-input" placeholder="Search in transcripts..." autocomplete="off">
+          <span id="reader-search-count" class="reader-search-count"></span>
+        </div>
+        <div class="reader-layout">
+          <nav class="reader-toc" id="reader-toc" aria-label="Table of contents"></nav>
+          <div class="reader-content" id="reader-content"></div>
+        </div>
       </div>
     </main>
   </div>

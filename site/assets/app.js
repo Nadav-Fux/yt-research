@@ -8,6 +8,7 @@ let filterTopic = null;
 let filterChannel = null;
 let query = '';
 let sortBy = 'date';
+let transcriptCache = {};
 
 const API = 'https://yt-research-api.nadavf.workers.dev/api';
 
@@ -147,9 +148,19 @@ function render() {
   $cards.innerHTML = list.map(cardHtml).join('');
 
   $cards.querySelectorAll('.card').forEach(function(el) {
-    el.addEventListener('click', function() { openEntry(el.dataset.id); });
+    el.addEventListener('click', function(ev) {
+      if (ev.target.closest('.card-transcript-toggle') || ev.target.closest('.card-transcript-container')) return;
+      openEntry(el.dataset.id);
+    });
     el.addEventListener('keydown', function(ev) {
       if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openEntry(el.dataset.id); }
+    });
+  });
+
+  $cards.querySelectorAll('.card-transcript-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      toggleCardTranscript(btn.dataset.vid);
     });
   });
 }
@@ -189,6 +200,10 @@ function cardHtml(v) {
         badges +
         '<span class="card-topic" style="background:' + topicColor + '22;color:' + topicColor + '">' + esc(v.topic || '') + '</span>' +
       '</div>' +
+      (v.hasTranscript
+        ? '<button class="card-transcript-toggle" data-vid="' + esc(v.id) + '" type="button"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h10"/></svg> Transcript <span class="toggle-arrow">&#9660;</span></button>'
+        : '<span class="card-transcript-disabled"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h10"/></svg> No transcript</span>') +
+      '<div class="card-transcript-container" id="ct-' + esc(v.id) + '" hidden></div>' +
     '</div>' +
   '</article>';
 }
@@ -443,6 +458,89 @@ function renderDrawer(v, ch, loading) {
   }
 }
 
+
+/* ── Card inline transcript ── */
+function toggleCardTranscript(vid) {
+  var container = document.getElementById('ct-' + vid);
+  if (!container) return;
+  var btn = container.parentElement.querySelector('.card-transcript-toggle');
+
+  // If already visible, collapse
+  if (!container.hidden) {
+    container.hidden = true;
+    if (btn) {
+      btn.classList.remove('active');
+      btn.querySelector('.toggle-arrow').innerHTML = '&#9660;';
+    }
+    return;
+  }
+
+  // Show container
+  container.hidden = false;
+  if (btn) {
+    btn.classList.add('active');
+    btn.querySelector('.toggle-arrow').innerHTML = '&#9650;';
+  }
+
+  // If already loaded, done
+  if (transcriptCache[vid]) {
+    return;
+  }
+
+  // Show loading state
+  container.innerHTML = '<div class="ct-loading"><span class="spinner"></span> Loading transcript...</div>';
+
+  fetch(API + '/videos/' + encodeURIComponent(vid))
+    .then(function(res) { return res.ok ? res.json() : null; })
+    .then(function(data) {
+      if (!data || !data.video || !data.video.transcript) {
+        container.innerHTML = '<div class="ct-empty">Transcript not available.</div>';
+        return;
+      }
+      transcriptCache[vid] = data.video.transcript;
+      // Also update local cache
+      var idx = allVideos.findIndex(function(x) { return x.id === vid; });
+      if (idx >= 0) {
+        allVideos[idx].transcript = data.video.transcript;
+        if (data.video.summary) allVideos[idx].summary = data.video.summary;
+      }
+      renderCardTranscript(vid, container);
+    })
+    .catch(function() {
+      container.innerHTML = '<div class="ct-empty">Failed to load transcript.</div>';
+    });
+}
+
+function renderCardTranscript(vid, container) {
+  var text = transcriptCache[vid] || '';
+  container.innerHTML =
+    '<div class="ct-actions">' +
+      '<button class="ct-copy-btn" type="button"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy</button>' +
+      '<button class="ct-collapse-btn" type="button"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg> Collapse</button>' +
+    '</div>' +
+    '<div class="ct-text">' + esc(text) + '</div>';
+
+  container.querySelector('.ct-copy-btn').addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    navigator.clipboard.writeText(text).then(function() {
+      showToast('Transcript copied!');
+    }).catch(function() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Transcript copied!');
+    });
+  });
+
+  container.querySelector('.ct-collapse-btn').addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    toggleCardTranscript(vid);
+  });
+}
+
 function closeDrawer() {
   $drawer.hidden = true;
   document.body.classList.remove('drawer-open');
@@ -607,3 +705,317 @@ function refreshData() {
       $scrapeStatus.textContent = 'Failed to refresh data';
     });
 }
+
+/* ── Reader View ── */
+(function() {
+  var currentView = 'cards';
+  var readerLoaded = false;
+  var readerTranscripts = {}; // id -> { video, transcript }
+  var readerSearchTerm = '';
+
+  /* DOM refs for reader */
+  var $viewToggle = document.getElementById('view-toggle');
+  var $readerView = document.getElementById('reader-view');
+  var $readerProgress = document.getElementById('reader-progress');
+  var $readerProgressBar = document.getElementById('reader-progress-bar');
+  var $readerProgressText = document.getElementById('reader-progress-text');
+  var $readerSearchBar = document.getElementById('reader-search-bar');
+  var $readerSearch = document.getElementById('reader-search');
+  var $readerSearchCount = document.getElementById('reader-search-count');
+  var $readerToc = document.getElementById('reader-toc');
+  var $readerContent = document.getElementById('reader-content');
+
+  /* Elements that need to be hidden/shown when switching views */
+  function getCardsViewEls() {
+    return {
+      cards: document.getElementById('cards'),
+      empty: document.getElementById('empty'),
+      sortBar: document.getElementById('sort-bar'),
+      filters: document.getElementById('filters')
+    };
+  }
+
+  /* ── View Toggle ── */
+  if ($viewToggle) {
+    $viewToggle.querySelectorAll('.view-toggle-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var view = btn.dataset.view;
+        if (view === currentView) return;
+        currentView = view;
+
+        $viewToggle.querySelectorAll('.view-toggle-btn').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.view === view);
+        });
+
+        if (view === 'reader') {
+          showReaderView();
+        } else {
+          showCardsView();
+        }
+      });
+    });
+  }
+
+  function showCardsView() {
+    var els = getCardsViewEls();
+    if (els.cards) els.cards.style.display = '';
+    if (els.sortBar) els.sortBar.style.display = '';
+    if ($readerView) $readerView.hidden = true;
+  }
+
+  function showReaderView() {
+    var els = getCardsViewEls();
+    if (els.cards) els.cards.style.display = 'none';
+    if (els.empty) els.empty.hidden = true;
+    if (els.sortBar) els.sortBar.style.display = 'none';
+    if (els.filters) els.filters.hidden = true;
+    if ($readerView) $readerView.hidden = false;
+
+    if (!readerLoaded) {
+      loadAllTranscripts();
+    }
+  }
+
+  /* ── Load all transcripts ── */
+  function loadAllTranscripts() {
+    /* allVideos is globally available from the main app */
+    if (typeof allVideos === 'undefined' || !allVideos.length) {
+      if ($readerContent) $readerContent.innerHTML = '<p style="text-align:center;color:var(--text-dim);padding:40px">No videos loaded yet. Please wait for data to load.</p>';
+      return;
+    }
+
+    var videosWithTranscript = allVideos.filter(function(v) { return v.hasTranscript; });
+    var total = videosWithTranscript.length;
+
+    if (total === 0) {
+      if ($readerContent) $readerContent.innerHTML = '<p style="text-align:center;color:var(--text-dim);padding:40px">No videos with transcripts found.</p>';
+      readerLoaded = true;
+      return;
+    }
+
+    $readerProgress.hidden = false;
+    $readerSearchBar.hidden = true;
+    $readerProgressText.textContent = 'Loading 0/' + total + ' transcripts...';
+    $readerProgressBar.style.setProperty('--progress', '0%');
+
+    var loaded = 0;
+    var results = [];
+
+    /* Batch fetch with concurrency limit */
+    var concurrency = 5;
+    var queue = videosWithTranscript.slice();
+    var active = 0;
+
+    function processNext() {
+      if (queue.length === 0 && active === 0) {
+        onAllLoaded(results);
+        return;
+      }
+      while (active < concurrency && queue.length > 0) {
+        active++;
+        var v = queue.shift();
+        fetchOne(v);
+      }
+    }
+
+    function fetchOne(v) {
+      fetch(API + '/videos/' + encodeURIComponent(v.id))
+        .then(function(res) { return res.ok ? res.json() : null; })
+        .then(function(data) {
+          if (data && data.video) {
+            results.push({
+              video: Object.assign({}, v, { transcript: data.video.transcript, summary: data.video.summary }),
+              channel: data.channel
+            });
+            readerTranscripts[v.id] = results[results.length - 1];
+          }
+        })
+        .catch(function() { /* skip failed */ })
+        .finally(function() {
+          loaded++;
+          active--;
+          var pct = Math.round((loaded / total) * 100);
+          $readerProgressBar.style.setProperty('--progress', pct + '%');
+          $readerProgressText.textContent = 'Loading ' + loaded + '/' + total + ' transcripts...';
+          processNext();
+        });
+    }
+
+    processNext();
+  }
+
+  function onAllLoaded(results) {
+    readerLoaded = true;
+    $readerProgress.hidden = true;
+    $readerSearchBar.hidden = false;
+
+    /* Sort by date descending */
+    results.sort(function(a, b) {
+      return new Date(b.video.date) - new Date(a.video.date);
+    });
+
+    renderReaderToc(results);
+    renderReaderContent(results);
+    wireReaderSearch(results);
+  }
+
+  /* ── Render TOC ── */
+  function renderReaderToc(results) {
+    var html = '';
+    results.forEach(function(r, i) {
+      var v = r.video;
+      var ch = r.channel;
+      var chName = ch ? ch.name : '';
+      html += '<button class="reader-toc-item' + (i === 0 ? ' active' : '') + '" data-index="' + i + '" data-id="' + esc(v.id) + '" title="' + esc(v.title) + '">' +
+        esc(v.title) +
+        (chName ? '<span class="reader-toc-channel">' + esc(chName) + '</span>' : '') +
+        '</button>';
+    });
+    $readerToc.innerHTML = html;
+
+    /* TOC click handler */
+    $readerToc.querySelectorAll('.reader-toc-item').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.dataset.id;
+        var section = document.getElementById('reader-section-' + id);
+        if (section) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        $readerToc.querySelectorAll('.reader-toc-item').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+      });
+    });
+
+    /* Scroll spy: highlight TOC item on scroll */
+    setupScrollSpy(results);
+  }
+
+  function setupScrollSpy(results) {
+    var sections = results.map(function(r) {
+      return document.getElementById('reader-section-' + r.video.id);
+    }).filter(Boolean);
+
+    var tocButtons = $readerToc.querySelectorAll('.reader-toc-item');
+    var headerOffset = 80;
+    var scrollContainer = $readerContent;
+
+    function onScroll() {
+      var scrollTop = window.scrollY || document.documentElement.scrollTop;
+      var current = 0;
+      for (var i = 0; i < sections.length; i++) {
+        var rect = sections[i].getBoundingClientRect();
+        if (rect.top <= headerOffset + 20) {
+          current = i;
+        }
+      }
+      tocButtons.forEach(function(b, idx) {
+        b.classList.toggle('active', idx === current);
+      });
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
+
+  /* ── Render Content ── */
+  function renderReaderContent(results) {
+    var html = '';
+    results.forEach(function(r) {
+      var v = r.video;
+      var ch = r.channel;
+      var chName = ch ? esc(ch.name) : '';
+      var transcript = v.transcript || '';
+
+      html += '<div class="reader-section" id="reader-section-' + esc(v.id) + '">' +
+        '<div class="reader-section-header">' +
+          '<h2 class="reader-section-title"><a href="' + esc(v.url) + '" target="_blank" rel="noopener">' + esc(v.title) + '</a></h2>' +
+          '<div class="reader-section-meta">' +
+            (chName ? '<span class="reader-section-channel">' + chName + '</span>' : '') +
+            '<span>' + fmtDate(v.date) + '</span>' +
+            '<span>' + fmtDuration(v.durationSeconds) + '</span>' +
+            '<span>' + fmtNum(v.viewCount) + ' views</span>' +
+            (v.transcriptWordCount ? '<span>' + fmtNum(v.transcriptWordCount) + ' words</span>' : '') +
+          '</div>' +
+        '</div>';
+
+      if (transcript) {
+        html += '<div class="reader-section-transcript" data-video-id="' + esc(v.id) + '">' + esc(transcript) + '</div>';
+      } else {
+        html += '<div class="reader-section-no-transcript">Transcript not available</div>';
+      }
+
+      html += '</div>';
+    });
+
+    $readerContent.innerHTML = html;
+  }
+
+  /* ── Search in transcripts ── */
+  function wireReaderSearch(results) {
+    var timer;
+    $readerSearch.addEventListener('input', function() {
+      clearTimeout(timer);
+      timer = setTimeout(function() {
+        readerSearchTerm = $readerSearch.value.trim();
+        applyReaderSearch(results);
+      }, 250);
+    });
+  }
+
+  function applyReaderSearch(results) {
+    var transcriptEls = $readerContent.querySelectorAll('.reader-section-transcript');
+
+    if (!readerSearchTerm) {
+      /* Clear highlights */
+      transcriptEls.forEach(function(el) {
+        var vid = el.dataset.videoId;
+        var r = readerTranscripts[vid];
+        if (r && r.video.transcript) {
+          el.innerHTML = esc(r.video.transcript);
+        }
+      });
+      $readerSearchCount.textContent = '';
+      return;
+    }
+
+    var totalMatches = 0;
+    var searchLower = readerSearchTerm.toLowerCase();
+    var escapedSearch = readerSearchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var regex = new RegExp('(' + escapedSearch + ')', 'gi');
+
+    transcriptEls.forEach(function(el) {
+      var vid = el.dataset.videoId;
+      var r = readerTranscripts[vid];
+      if (!r || !r.video.transcript) return;
+
+      var text = r.video.transcript;
+      var matches = text.match(regex);
+      if (matches) {
+        totalMatches += matches.length;
+        el.innerHTML = esc(text).replace(
+          new RegExp('(' + escapedSearch.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + ')', 'gi'),
+          '<mark class="reader-highlight">$1</mark>'
+        );
+      } else {
+        el.innerHTML = esc(text);
+      }
+    });
+
+    $readerSearchCount.textContent = totalMatches + ' match' + (totalMatches !== 1 ? 'es' : '') + ' found';
+
+    /* Scroll to first match */
+    if (totalMatches > 0) {
+      var first = $readerContent.querySelector('.reader-highlight');
+      if (first) {
+        first.classList.add('reader-highlight-current');
+        first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }
+
+  /* ── Expose for external access if needed ── */
+  window.readerView = {
+    show: showReaderView,
+    hide: showCardsView,
+    reload: function() { readerLoaded = false; loadAllTranscripts(); }
+  };
+})();
