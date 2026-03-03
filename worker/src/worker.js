@@ -4,6 +4,7 @@ import { handleSummarize } from './handlers/summarize.js';
 import { handleIngest } from './handlers/ingest.js';
 import { handleExport } from './handlers/export.js';
 import { handleScrape } from './handlers/scrape.js';
+import { handleListPrompts, handleCreatePrompt, handleUpdatePrompt, handleDeletePrompt } from './handlers/prompts.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -48,6 +49,27 @@ export default {
         return await handleScrape(request, env);
       }
 
+      // --- Route: GET /api/prompts ---
+      if (method === 'GET' && pathname === '/api/prompts') {
+        return await handleListPrompts(request, env);
+      }
+
+      // --- Route: POST /api/prompts ---
+      if (method === 'POST' && pathname === '/api/prompts') {
+        return await handleCreatePrompt(request, env);
+      }
+
+      // --- Routes: PUT|DELETE /api/prompts/:id ---
+      const promptMatch = pathname.match(/^\/api\/prompts\/([a-zA-Z0-9_-]+)$/);
+      if (promptMatch) {
+        if (method === 'PUT') {
+          return await handleUpdatePrompt(request, env, promptMatch[1]);
+        }
+        if (method === 'DELETE') {
+          return await handleDeletePrompt(request, env, promptMatch[1]);
+        }
+      }
+
       // --- Health check ---
       if (method === 'GET' && (pathname === '/' || pathname === '/health')) {
         return new Response(
@@ -79,6 +101,10 @@ export default {
             'POST /api/ingest',
             'POST /api/scrape',
             'GET  /api/export',
+            'GET  /api/prompts',
+            'POST /api/prompts',
+            'PUT  /api/prompts/:id',
+            'DELETE /api/prompts/:id',
           ],
         }),
         {
