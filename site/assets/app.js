@@ -1196,3 +1196,661 @@ function refreshData() {
 
   createFloatingBar();
 })();
+
+
+/* ── AI Extract System ── */
+(function() {
+  'use strict';
+
+  var N8N_WEBHOOK = 'https://n8n.74111147.xyz/webhook/yt-extract';
+  var PROMPTS_API = 'https://yt-research-api.nadavf.workers.dev/api/prompts';
+  var BUILTIN_DEFAULT_PROMPT = 'You are a research analyst. Extract the most valuable and actionable information from this YouTube video transcript. Focus on:\n- Key insights and unique perspectives\n- Specific techniques, tools, or methods mentioned\n- Important facts, numbers, and data points\n- Actionable advice and recommendations\nSkip filler, repetition, sponsor segments, and pleasantries. Be concise but thorough. Use bullet points.';
+
+  /* Cache: videoId -> AI result text */
+  var aiExtractCache = new Map();
+  /* Prompts cache */
+  var promptsCache = null;
+  var promptsCacheTime = 0;
+  var PROMPTS_CACHE_TTL = 60000; /* 1 min */
+
+  /* ── Fetch prompts with caching ── */
+  function fetchPrompts(force) {
+    if (!force && promptsCache && (Date.now() - promptsCacheTime < PROMPTS_CACHE_TTL)) {
+      return Promise.resolve(promptsCache);
+    }
+    return fetch(PROMPTS_API)
+      .then(function(r) { return r.ok ? r.json() : { prompts: [], defaultPromptId: null }; })
+      .then(function(data) {
+        promptsCache = data;
+        promptsCacheTime = Date.now();
+        return data;
+      })
+      .catch(function() { return { prompts: [], defaultPromptId: null }; });
+  }
+
+  /* ── Get effective prompt text ── */
+  function getEffectivePrompt(data, selectedId) {
+    if (!selectedId || selectedId === '__builtin__') return BUILTIN_DEFAULT_PROMPT;
+    var p = (data.prompts || []).find(function(x) { return x.id === selectedId; });
+    return p ? p.text : BUILTIN_DEFAULT_PROMPT;
+  }
+
+  /* ── Get default prompt id ── */
+  function getDefaultPromptId(data) {
+    if (data.defaultPromptId) return data.defaultPromptId;
+    return '__builtin__';
+  }
+
+  /* ── Call n8n extraction ── */
+  function callExtract(transcript, prompt, videoId, videoTitle) {
+    return fetch(N8N_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: transcript, prompt: prompt, videoId: videoId, videoTitle: videoTitle })
+    })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  /* ── Render markdown-like AI text to HTML ── */
+  function renderAIText(text) {
+    if (!text) return '';
+    /* Escape HTML */
+    var s = String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    /* Bold */
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    /* Headings: lines starting with ## or # */
+    s = s.replace(/^### (.+)$/gm, '<h4 class="ai-heading">$1</h4>');
+    s = s.replace(/^## (.+)$/gm, '<h3 class="ai-heading">$1</h3>');
+    s = s.replace(/^# (.+)$/gm, '<h3 class="ai-heading">$1</h3>');
+    /* Bullet points */
+    s = s.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+    /* Wrap consecutive <li> in <ul> */
+    s = s.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul class="ai-list">$1</ul>');
+    /* Numbered lists */
+    s = s.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    /* Paragraphs: double newlines */
+    s = s.replace(/\n{2,}/g, '</p><p>');
+    /* Single newlines to <br> only if not already handled */
+    s = s.replace(/\n/g, '<br>');
+    return '<p>' + s + '</p>';
+  }
+
+  /* ── Create prompt dropdown ── */
+  function createPromptDropdown(promptsData, onSelect) {
+    var dropdown = document.createElement('div');
+    dropdown.className = 'ai-prompt-dropdown';
+    var defaultId = getDefaultPromptId(promptsData);
+    var prompts = promptsData.prompts || [];
+
+    var html = '<div class="ai-prompt-dropdown-title">Select prompt:</div>';
+    html += '<button class="ai-prompt-option' + (defaultId === '__builtin__' ? ' selected' : '') + '" data-id="__builtin__">Default (built-in)</button>';
+    prompts.forEach(function(p) {
+      html += '<button class="ai-prompt-option' + (defaultId === p.id ? ' selected' : '') + '" data-id="' + p.id + '">' + esc(p.name) + '</button>';
+    });
+    dropdown.innerHTML = html;
+
+    dropdown.querySelectorAll('.ai-prompt-option').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        onSelect(btn.dataset.id);
+        dropdown.remove();
+      });
+    });
+
+    /* Close on outside click */
+    setTimeout(function() {
+      function closeHandler(e) {
+        if (!dropdown.contains(e.target)) {
+          dropdown.remove();
+          document.removeEventListener('click', closeHandler, true);
+        }
+      }
+      document.addEventListener('click', closeHandler, true);
+    }, 10);
+
+    return dropdown;
+  }
+
+  /* ── Add Extract button + tabs to each reader section ── */
+  function injectExtractButtons() {
+    var sections = document.querySelectorAll('.reader-section');
+    sections.forEach(function(section) {
+      var header = section.querySelector('.reader-section-header');
+      if (!header || header.querySelector('.ai-extract-btn')) return;
+
+      var sectionId = section.id.replace('reader-section-', '');
+
+      /* Create extract button */
+      var extractBtn = document.createElement('button');
+      extractBtn.type = 'button';
+      extractBtn.className = 'ai-extract-btn';
+      extractBtn.title = 'AI Extract Best';
+      extractBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg> Extract';
+      extractBtn.dataset.videoId = sectionId;
+
+      /* Insert before the copy button */
+      var copyBtn = header.querySelector('.reader-copy-btn');
+      if (copyBtn) {
+        header.insertBefore(extractBtn, copyBtn);
+      } else {
+        header.appendChild(extractBtn);
+      }
+
+      extractBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        handleExtractClick(sectionId, section, extractBtn);
+      });
+    });
+  }
+
+  /* ── Handle extract click on a section ── */
+  function handleExtractClick(videoId, section, btn) {
+    /* If already cached, just switch to AI tab */
+    if (aiExtractCache.has(videoId)) {
+      ensureTabs(videoId, section);
+      switchTab(videoId, section, 'ai');
+      return;
+    }
+
+    /* Check for existing dropdown */
+    var existingDd = btn.parentElement.querySelector('.ai-prompt-dropdown');
+    if (existingDd) { existingDd.remove(); return; }
+
+    /* Fetch prompts then show dropdown or extract directly */
+    fetchPrompts().then(function(data) {
+      var prompts = data.prompts || [];
+      if (prompts.length === 0) {
+        /* No custom prompts, extract immediately with built-in */
+        doExtract(videoId, section, btn, BUILTIN_DEFAULT_PROMPT);
+      } else {
+        /* Show dropdown */
+        var dd = createPromptDropdown(data, function(selectedId) {
+          var promptText = getEffectivePrompt(data, selectedId);
+          doExtract(videoId, section, btn, promptText);
+        });
+        btn.parentElement.style.position = 'relative';
+        btn.parentElement.appendChild(dd);
+        /* Position near the button */
+        var rect = btn.getBoundingClientRect();
+        var parentRect = btn.parentElement.getBoundingClientRect();
+        dd.style.top = (rect.bottom - parentRect.top + 4) + 'px';
+        dd.style.right = '0';
+      }
+    });
+  }
+
+  /* ── Execute extraction ── */
+  function doExtract(videoId, section, btn, promptText) {
+    var transcriptEl = section.querySelector('.reader-section-transcript');
+    if (!transcriptEl) {
+      showToast('No transcript available for extraction');
+      return;
+    }
+    var transcript = transcriptEl.textContent;
+    if (!transcript || transcript.trim().length < 50) {
+      showToast('Transcript too short for extraction');
+      return;
+    }
+
+    /* Find video title */
+    var titleEl = section.querySelector('.reader-section-title a');
+    var videoTitle = titleEl ? titleEl.textContent : '';
+
+    /* Show loading state */
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Extracting...';
+    section.classList.add('ai-extracting');
+
+    callExtract(transcript, promptText, videoId, videoTitle)
+      .then(function(data) {
+        var result = data.result || data.output || 'No result returned';
+        aiExtractCache.set(videoId, { text: result, model: data.model || 'AI' });
+        ensureTabs(videoId, section);
+        switchTab(videoId, section, 'ai');
+        btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg> Extract';
+        btn.disabled = false;
+        section.classList.remove('ai-extracting');
+      })
+      .catch(function(err) {
+        showToast('Extraction failed: ' + err.message);
+        btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg> Extract';
+        btn.disabled = false;
+        section.classList.remove('ai-extracting');
+      });
+  }
+
+  /* ── Ensure tabs exist for a section ── */
+  function ensureTabs(videoId, section) {
+    if (section.querySelector('.ai-tabs')) return;
+
+    var transcriptEl = section.querySelector('.reader-section-transcript');
+    if (!transcriptEl) return;
+
+    /* Create tab bar */
+    var tabs = document.createElement('div');
+    tabs.className = 'ai-tabs';
+    tabs.innerHTML =
+      '<button class="ai-tab active" data-tab="original" data-vid="' + videoId + '">Original</button>' +
+      '<button class="ai-tab" data-tab="ai" data-vid="' + videoId + '">AI Extract</button>';
+
+    /* Insert tabs before the transcript */
+    transcriptEl.parentNode.insertBefore(tabs, transcriptEl);
+
+    /* Create AI content div (hidden by default) */
+    var aiDiv = document.createElement('div');
+    aiDiv.className = 'ai-extract-content';
+    aiDiv.id = 'ai-extract-' + videoId;
+    aiDiv.hidden = true;
+    transcriptEl.parentNode.insertBefore(aiDiv, transcriptEl.nextSibling);
+
+    /* Wire tab clicks */
+    tabs.querySelectorAll('.ai-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        switchTab(videoId, section, tab.dataset.tab);
+      });
+    });
+  }
+
+  /* ── Switch between Original / AI tabs ── */
+  function switchTab(videoId, section, tabName) {
+    var tabs = section.querySelectorAll('.ai-tab');
+    tabs.forEach(function(t) {
+      t.classList.toggle('active', t.dataset.tab === tabName);
+    });
+
+    var transcriptEl = section.querySelector('.reader-section-transcript');
+    var aiDiv = section.querySelector('.ai-extract-content');
+    if (!transcriptEl || !aiDiv) return;
+
+    if (tabName === 'ai') {
+      transcriptEl.hidden = true;
+      aiDiv.hidden = false;
+      /* Populate AI content */
+      var cached = aiExtractCache.get(videoId);
+      if (cached) {
+        aiDiv.innerHTML = '<div class="ai-extract-text">' + renderAIText(cached.text) + '</div>' +
+          '<div class="ai-extract-model">Generated by ' + esc(cached.model) + '</div>';
+      }
+    } else {
+      transcriptEl.hidden = false;
+      aiDiv.hidden = true;
+    }
+  }
+
+  /* ── Floating action bar: wire Extract Best button ── */
+  function wireFloatingExtract() {
+    var rabExtract = document.getElementById('rab-extract');
+    if (!rabExtract || rabExtract.dataset.wiredAi) return;
+    rabExtract.dataset.wiredAi = '1';
+
+    /* Remove old click handler by replacing the node */
+    var newBtn = rabExtract.cloneNode(true);
+    rabExtract.parentNode.replaceChild(newBtn, rabExtract);
+
+    newBtn.addEventListener('click', function() {
+      var checkboxes = document.querySelectorAll('.reader-section-checkbox:checked');
+      if (checkboxes.length === 0) {
+        showToast('No videos selected');
+        return;
+      }
+
+      var videoIds = [];
+      checkboxes.forEach(function(cb) { videoIds.push(cb.dataset.videoId); });
+
+      /* Check for existing dropdown near the bar */
+      var existing = document.querySelector('.ai-batch-dropdown');
+      if (existing) { existing.remove(); return; }
+
+      fetchPrompts().then(function(data) {
+        var prompts = data.prompts || [];
+        if (prompts.length === 0) {
+          doBatchExtract(videoIds, BUILTIN_DEFAULT_PROMPT);
+        } else {
+          /* Show dropdown anchored to the floating bar */
+          var dd = createPromptDropdown(data, function(selectedId) {
+            var promptText = getEffectivePrompt(data, selectedId);
+            doBatchExtract(videoIds, promptText);
+          });
+          dd.classList.add('ai-batch-dropdown');
+          var bar = document.getElementById('reader-action-bar');
+          if (bar) {
+            bar.style.position = 'relative';
+            dd.style.bottom = '100%';
+            dd.style.top = 'auto';
+            dd.style.marginBottom = '8px';
+            bar.appendChild(dd);
+          }
+        }
+      });
+    });
+  }
+
+  /* ── Batch extract ── */
+  function doBatchExtract(videoIds, promptText) {
+    var total = videoIds.length;
+    var current = 0;
+    var rabExtract = document.getElementById('rab-extract');
+
+    function next() {
+      if (current >= total) {
+        if (rabExtract) rabExtract.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg> Extract Best';
+        showToast('Extracted ' + total + ' video(s)!');
+        return;
+      }
+      var videoId = videoIds[current];
+      current++;
+      if (rabExtract) rabExtract.innerHTML = '<span class="spinner"></span> Extracting ' + current + '/' + total + '...';
+
+      /* Skip if already cached */
+      if (aiExtractCache.has(videoId)) {
+        var section = document.getElementById('reader-section-' + videoId);
+        if (section) {
+          ensureTabs(videoId, section);
+          switchTab(videoId, section, 'ai');
+        }
+        next();
+        return;
+      }
+
+      var section = document.getElementById('reader-section-' + videoId);
+      if (!section) { next(); return; }
+
+      var transcriptEl = section.querySelector('.reader-section-transcript');
+      if (!transcriptEl) { next(); return; }
+
+      var transcript = transcriptEl.textContent;
+      var titleEl = section.querySelector('.reader-section-title a');
+      var videoTitle = titleEl ? titleEl.textContent : '';
+
+      section.classList.add('ai-extracting');
+
+      callExtract(transcript, promptText, videoId, videoTitle)
+        .then(function(data) {
+          var result = data.result || data.output || 'No result returned';
+          aiExtractCache.set(videoId, { text: result, model: data.model || 'AI' });
+          ensureTabs(videoId, section);
+          switchTab(videoId, section, 'ai');
+          section.classList.remove('ai-extracting');
+        })
+        .catch(function() {
+          section.classList.remove('ai-extracting');
+        })
+        .finally(function() {
+          next();
+        });
+    }
+
+    next();
+  }
+
+  /* ── Prompt Manager Modal ── */
+  function openPromptManager() {
+    /* Remove existing modal if any */
+    var existing = document.getElementById('prompt-manager-modal');
+    if (existing) existing.remove();
+
+    var modal = document.createElement('div');
+    modal.id = 'prompt-manager-modal';
+    modal.className = 'pm-overlay';
+    modal.innerHTML =
+      '<div class="pm-backdrop"></div>' +
+      '<div class="pm-modal">' +
+        '<div class="pm-header">' +
+          '<h2 class="pm-title">Prompt Manager</h2>' +
+          '<button class="pm-close" type="button">&times;</button>' +
+        '</div>' +
+        '<div class="pm-body" id="pm-body"><div class="pm-loading"><span class="spinner"></span> Loading prompts...</div></div>' +
+        '<div class="pm-footer">' +
+          '<button class="pm-add-btn" id="pm-add-btn" type="button">+ Add New Prompt</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(modal);
+
+    /* Close handlers */
+    modal.querySelector('.pm-backdrop').addEventListener('click', function() { modal.remove(); });
+    modal.querySelector('.pm-close').addEventListener('click', function() { modal.remove(); });
+    document.addEventListener('keydown', function pmEsc(e) {
+      if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', pmEsc); }
+    });
+
+    /* Load prompts */
+    fetchPrompts(true).then(function(data) {
+      renderPromptList(data);
+    });
+
+    /* Add new prompt */
+    modal.querySelector('#pm-add-btn').addEventListener('click', function() {
+      showPromptEditor(null);
+    });
+  }
+
+  function renderPromptList(data) {
+    var body = document.getElementById('pm-body');
+    if (!body) return;
+
+    var prompts = data.prompts || [];
+    var defaultId = data.defaultPromptId || null;
+    var html = '';
+
+    /* Built-in default first */
+    html += '<div class="pm-item pm-item-builtin">' +
+      '<div class="pm-item-header">' +
+        '<span class="pm-item-star active" title="Built-in default">&#9733;</span>' +
+        '<span class="pm-item-name">Default (built-in)</span>' +
+        '<span class="pm-item-badge">Built-in</span>' +
+      '</div>' +
+      '<div class="pm-item-preview">' + esc(BUILTIN_DEFAULT_PROMPT).substring(0, 150) + '...</div>' +
+    '</div>';
+
+    prompts.forEach(function(p) {
+      var isDefault = (p.id === defaultId);
+      html += '<div class="pm-item" data-id="' + p.id + '">' +
+        '<div class="pm-item-header">' +
+          '<button class="pm-item-star' + (isDefault ? ' active' : '') + '" data-id="' + p.id + '" title="Set as default">&#9733;</button>' +
+          '<span class="pm-item-name">' + esc(p.name) + '</span>' +
+          '<div class="pm-item-actions">' +
+            '<button class="pm-item-edit" data-id="' + p.id + '" title="Edit">&#9998;</button>' +
+            '<button class="pm-item-delete" data-id="' + p.id + '" title="Delete">&times;</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="pm-item-preview">' + esc((p.text || '').substring(0, 150)) + (p.text && p.text.length > 150 ? '...' : '') + '</div>' +
+      '</div>';
+    });
+
+    if (prompts.length === 0) {
+      html += '<div class="pm-empty">No custom prompts yet. Add one below.</div>';
+    }
+
+    body.innerHTML = html;
+
+    /* Wire star buttons */
+    body.querySelectorAll('.pm-item-star[data-id]').forEach(function(star) {
+      star.addEventListener('click', function() {
+        setDefaultPrompt(star.dataset.id);
+      });
+    });
+
+    /* Wire edit buttons */
+    body.querySelectorAll('.pm-item-edit').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var p = (promptsCache.prompts || []).find(function(x) { return x.id === btn.dataset.id; });
+        if (p) showPromptEditor(p);
+      });
+    });
+
+    /* Wire delete buttons */
+    body.querySelectorAll('.pm-item-delete').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        deletePrompt(btn.dataset.id);
+      });
+    });
+  }
+
+  function setDefaultPrompt(id) {
+    fetch(PROMPTS_API + '/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isDefault: true })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      fetchPrompts(true).then(renderPromptList);
+    })
+    .catch(function(err) { showToast('Failed to set default: ' + err.message); });
+  }
+
+  function deletePrompt(id) {
+    if (!confirm('Delete this prompt?')) return;
+    fetch(PROMPTS_API + '/' + id, { method: 'DELETE' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('Delete failed');
+        return fetchPrompts(true);
+      })
+      .then(renderPromptList)
+      .catch(function(err) { showToast('Failed to delete: ' + err.message); });
+  }
+
+  function showPromptEditor(existingPrompt) {
+    var body = document.getElementById('pm-body');
+    if (!body) return;
+
+    var isEdit = !!existingPrompt;
+    var nameVal = isEdit ? existingPrompt.name : '';
+    var textVal = isEdit ? existingPrompt.text : '';
+
+    /* Create inline editor */
+    var editor = document.createElement('div');
+    editor.className = 'pm-editor';
+    editor.innerHTML =
+      '<div class="pm-editor-title">' + (isEdit ? 'Edit Prompt' : 'New Prompt') + '</div>' +
+      '<input class="pm-editor-name" type="text" placeholder="Prompt name..." value="' + esc(nameVal) + '">' +
+      '<textarea class="pm-editor-text" rows="6" placeholder="Enter your extraction prompt...">' + esc(textVal) + '</textarea>' +
+      '<div class="pm-editor-actions">' +
+        '<button class="pm-editor-save" type="button">' + (isEdit ? 'Save Changes' : 'Create Prompt') + '</button>' +
+        '<button class="pm-editor-cancel" type="button">Cancel</button>' +
+      '</div>';
+
+    /* Remove existing editor if any */
+    var existingEditor = body.querySelector('.pm-editor');
+    if (existingEditor) existingEditor.remove();
+
+    body.appendChild(editor);
+    editor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    editor.querySelector('.pm-editor-name').focus();
+
+    editor.querySelector('.pm-editor-cancel').addEventListener('click', function() {
+      editor.remove();
+    });
+
+    editor.querySelector('.pm-editor-save').addEventListener('click', function() {
+      var name = editor.querySelector('.pm-editor-name').value.trim();
+      var text = editor.querySelector('.pm-editor-text').value.trim();
+      if (!name || !text) {
+        showToast('Name and text are required');
+        return;
+      }
+
+      var saveBtn = editor.querySelector('.pm-editor-save');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      var url = isEdit ? PROMPTS_API + '/' + existingPrompt.id : PROMPTS_API;
+      var method = isEdit ? 'PUT' : 'POST';
+
+      fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, text: text })
+      })
+      .then(function(r) {
+        if (!r.ok) throw new Error('Save failed');
+        return fetchPrompts(true);
+      })
+      .then(function(data) {
+        renderPromptList(data);
+        showToast(isEdit ? 'Prompt updated!' : 'Prompt created!');
+      })
+      .catch(function(err) {
+        showToast('Failed to save: ' + err.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = isEdit ? 'Save Changes' : 'Create Prompt';
+      });
+    });
+  }
+
+  /* ── Inject Prompt Manager gear button ── */
+  function injectPromptManagerButton() {
+    var bar = document.getElementById('reader-action-bar');
+    if (!bar || bar.querySelector('.ai-pm-btn')) return;
+
+    var pmBtn = document.createElement('button');
+    pmBtn.type = 'button';
+    pmBtn.className = 'rab-btn ai-pm-btn';
+    pmBtn.title = 'Manage Prompts';
+    pmBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>';
+    pmBtn.addEventListener('click', openPromptManager);
+
+    /* Insert before the clear button */
+    var clearBtn = bar.querySelector('#rab-clear');
+    if (clearBtn) {
+      bar.insertBefore(pmBtn, clearBtn);
+    } else {
+      bar.appendChild(pmBtn);
+    }
+  }
+
+  /* Also add a standalone gear button in the reader search bar area */
+  function injectReaderHeaderGear() {
+    var searchBar = document.getElementById('reader-search-bar');
+    if (!searchBar || searchBar.querySelector('.ai-pm-header-btn')) return;
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ai-pm-header-btn';
+    btn.title = 'Manage Extraction Prompts';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Prompts';
+    btn.addEventListener('click', openPromptManager);
+    searchBar.appendChild(btn);
+  }
+
+  /* ── Observer: inject buttons when reader sections appear ── */
+  var readerContent = document.getElementById('reader-content');
+  if (readerContent) {
+    var aiObserver = new MutationObserver(function() {
+      injectExtractButtons();
+      wireFloatingExtract();
+      injectPromptManagerButton();
+      injectReaderHeaderGear();
+    });
+    aiObserver.observe(readerContent, { childList: true, subtree: false });
+  }
+
+  /* Run on load too */
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+      injectExtractButtons();
+      wireFloatingExtract();
+      injectPromptManagerButton();
+      injectReaderHeaderGear();
+    }, 600);
+  });
+  /* Immediate run */
+  injectExtractButtons();
+  wireFloatingExtract();
+  injectPromptManagerButton();
+  injectReaderHeaderGear();
+
+  /* Expose for external use */
+  window.aiExtract = {
+    openPromptManager: openPromptManager,
+    cache: aiExtractCache
+  };
+})();
+
