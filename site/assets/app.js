@@ -1019,3 +1019,180 @@ function refreshData() {
     reload: function() { readerLoaded = false; loadAllTranscripts(); }
   };
 })();
+
+/* ── Reader Copy Buttons + Multi-Select + Floating Action Bar ── */
+(function() {
+  var selectedIds = new Set();
+  var floatingBar = null;
+
+  /* ── Create floating action bar ── */
+  function createFloatingBar() {
+    if (floatingBar) return;
+    var bar = document.createElement('div');
+    bar.id = 'reader-action-bar';
+    bar.className = 'reader-action-bar';
+    bar.innerHTML =
+      '<span class="rab-count"></span>' +
+      '<button class="rab-btn" id="rab-select-all" type="button">Select All</button>' +
+      '<button class="rab-btn rab-btn-primary" id="rab-copy-all" type="button">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
+        ' Copy All Selected</button>' +
+      '<button class="rab-btn rab-btn-purple" id="rab-extract" type="button">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>' +
+        ' Extract Best</button>' +
+      '<button class="rab-btn rab-btn-dim" id="rab-clear" type="button">Clear</button>';
+    document.body.appendChild(bar);
+    floatingBar = bar;
+
+    /* Wire buttons */
+    bar.querySelector('#rab-select-all').addEventListener('click', toggleSelectAll);
+    bar.querySelector('#rab-copy-all').addEventListener('click', copyAllSelected);
+    bar.querySelector('#rab-extract').addEventListener('click', function() { showToast('Coming soon'); });
+    bar.querySelector('#rab-clear').addEventListener('click', clearSelection);
+  }
+
+  /* ── Update floating bar visibility + count ── */
+  function updateBar() {
+    if (!floatingBar) createFloatingBar();
+    var count = selectedIds.size;
+    if (count === 0) {
+      floatingBar.classList.remove('visible');
+      return;
+    }
+    floatingBar.classList.add('visible');
+    floatingBar.querySelector('.rab-count').textContent = count + ' selected';
+
+    /* Toggle Select All / Deselect All label */
+    var allCheckboxes = document.querySelectorAll('.reader-section-checkbox');
+    var allChecked = allCheckboxes.length > 0 && selectedIds.size >= allCheckboxes.length;
+    var selectAllBtn = floatingBar.querySelector('#rab-select-all');
+    selectAllBtn.textContent = allChecked ? 'Deselect All' : 'Select All';
+  }
+
+  /* ── Toggle Select All / Deselect All ── */
+  function toggleSelectAll() {
+    var allCheckboxes = document.querySelectorAll('.reader-section-checkbox');
+    var allChecked = allCheckboxes.length > 0 && selectedIds.size >= allCheckboxes.length;
+    allCheckboxes.forEach(function(cb) {
+      if (allChecked) {
+        cb.checked = false;
+        selectedIds.delete(cb.dataset.videoId);
+      } else {
+        cb.checked = true;
+        selectedIds.add(cb.dataset.videoId);
+      }
+    });
+    updateBar();
+  }
+
+  /* ── Copy All Selected ── */
+  function copyAllSelected() {
+    if (selectedIds.size === 0) return;
+    var parts = [];
+    selectedIds.forEach(function(vid) {
+      var section = document.getElementById('reader-section-' + vid);
+      if (!section) return;
+      var titleEl = section.querySelector('.reader-section-title a');
+      var title = titleEl ? titleEl.textContent : 'Unknown';
+      var transcriptEl = section.querySelector('.reader-section-transcript');
+      var text = transcriptEl ? transcriptEl.textContent : '';
+      if (text) {
+        parts.push('--- ' + title + ' ---\n\n' + text);
+      }
+    });
+    var combined = parts.join('\n\n');
+    if (!combined) { showToast('No transcript text found'); return; }
+    navigator.clipboard.writeText(combined).then(function() {
+      showToast(selectedIds.size + ' transcript(s) copied!');
+    }).catch(function() {
+      var ta = document.createElement('textarea');
+      ta.value = combined;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast(selectedIds.size + ' transcript(s) copied!');
+    });
+  }
+
+  /* ── Clear Selection ── */
+  function clearSelection() {
+    selectedIds.clear();
+    document.querySelectorAll('.reader-section-checkbox').forEach(function(cb) {
+      cb.checked = false;
+    });
+    updateBar();
+  }
+
+  /* ── Inject controls into reader sections ── */
+  function injectReaderControls() {
+    var sections = document.querySelectorAll('.reader-section');
+    sections.forEach(function(section) {
+      var header = section.querySelector('.reader-section-header');
+      if (!header || header.querySelector('.reader-section-checkbox')) return;
+
+      var sectionId = section.id.replace('reader-section-', '');
+
+      /* Add checkbox */
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'reader-section-checkbox';
+      cb.dataset.videoId = sectionId;
+      cb.title = 'Select for batch actions';
+      cb.addEventListener('change', function() {
+        if (cb.checked) {
+          selectedIds.add(sectionId);
+        } else {
+          selectedIds.delete(sectionId);
+        }
+        updateBar();
+      });
+      header.insertBefore(cb, header.firstChild);
+
+      /* Add copy button */
+      var copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'reader-copy-btn';
+      copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy';
+      copyBtn.addEventListener('click', function() {
+        var transcriptEl = section.querySelector('.reader-section-transcript');
+        var text = transcriptEl ? transcriptEl.textContent : '';
+        if (!text) { showToast('No transcript to copy'); return; }
+        navigator.clipboard.writeText(text).then(function() {
+          showToast('Transcript copied!');
+          copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied';
+          setTimeout(function() {
+            copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy';
+          }, 1500);
+        }).catch(function() {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          showToast('Transcript copied!');
+        });
+      });
+      header.appendChild(copyBtn);
+    });
+  }
+
+  /* ── Observe DOM for reader sections being rendered ── */
+  var readerContent = document.getElementById('reader-content');
+  if (readerContent) {
+    var observer = new MutationObserver(function() {
+      injectReaderControls();
+    });
+    observer.observe(readerContent, { childList: true, subtree: true });
+  }
+
+  /* Also run on page load in case reader is already rendered */
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(injectReaderControls, 500);
+  });
+  /* Run immediately too */
+  injectReaderControls();
+
+  createFloatingBar();
+})();

@@ -351,3 +351,164 @@ body.drawer-open { overflow: hidden; }
   .reader-content { padding-left: 0; }
   .view-toggle { display: flex; }
 }
+
+/* ── Reader Copy Button ── */
+.reader-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--accent2);
+  font-family: var(--font);
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.reader-copy-btn:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+/* ── Reader Section Checkbox ── */
+.reader-section-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-right: 10px;
+  margin-top: 4px;
+  position: relative;
+  transition: all .15s;
+}
+.reader-section-checkbox:hover {
+  border-color: var(--accent2);
+}
+.reader-section-checkbox:checked {
+  background: var(--accent2);
+  border-color: var(--accent2);
+}
+.reader-section-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* ── Reader Section Header with checkbox + copy layout ── */
+.reader-section-header {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0;
+}
+.reader-section-header .reader-section-title {
+  flex: 1;
+  min-width: 0;
+}
+.reader-section-header .reader-section-meta {
+  width: 100%;
+  padding-left: 28px;
+}
+
+/* ── Floating Action Bar ── */
+.reader-action-bar {
+  position: fixed;
+  bottom: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 150;
+  box-shadow: 0 8px 40px rgba(0,0,0,.5);
+  transition: bottom .3s cubic-bezier(.4,0,.2,1);
+  white-space: nowrap;
+}
+.reader-action-bar.visible {
+  bottom: 24px;
+}
+.rab-count {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--accent2);
+  margin-right: 4px;
+}
+.rab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: .8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+}
+.rab-btn:hover {
+  background: var(--border);
+}
+.rab-btn-primary {
+  background: var(--accent2);
+  border-color: var(--accent2);
+  color: #fff;
+}
+.rab-btn-primary:hover {
+  opacity: .85;
+}
+.rab-btn-purple {
+  background: rgba(139,92,246,.2);
+  border-color: var(--purple);
+  color: var(--purple);
+}
+.rab-btn-purple:hover {
+  background: rgba(139,92,246,.35);
+}
+.rab-btn-dim {
+  color: var(--text-dim);
+  border-color: transparent;
+  background: none;
+}
+.rab-btn-dim:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+/* ── Responsive: floating bar ── */
+@media (max-width: 900px) {
+  .reader-action-bar {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+  }
+  .rab-btn {
+    font-size: .72rem;
+    padding: 5px 10px;
+  }
+}
