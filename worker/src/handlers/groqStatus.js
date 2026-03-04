@@ -1,12 +1,12 @@
 import { corsHeaders } from '../lib/cors.js';
 
-const GROQ_MODELS_URL = 'https://api.groq.com/openai/v1/models';
+const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 /**
  * GET /api/groq-status
  *
- * Checks rate limit headers for each Groq key by hitting the /models endpoint.
- * Returns remaining tokens/requests for each key.
+ * Makes a tiny chat completion with each key to read rate limit headers.
+ * Uses max_tokens=1 to minimize token usage (~10 tokens per check).
  */
 export async function handleGroqStatus(request, env) {
   const origin = request.headers.get('Origin') || '';
@@ -30,13 +30,22 @@ export async function handleGroqStatus(request, env) {
     const label = 'Key ' + (i + 1) + ' (' + key.slice(0, 8) + '...)';
 
     try {
-      const resp = await fetch(GROQ_MODELS_URL, {
-        headers: { Authorization: `Bearer ${key}` },
+      const resp = await fetch(GROQ_CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: 'hi' }],
+          max_tokens: 1,
+        }),
       });
 
       const rateLimits = {
         label,
-        status: resp.ok ? 'active' : 'error',
+        status: resp.ok ? 'active' : (resp.status === 429 ? 'rate_limited' : 'error'),
         httpStatus: resp.status,
         requestsLimit: resp.headers.get('x-ratelimit-limit-requests'),
         requestsRemaining: resp.headers.get('x-ratelimit-remaining-requests'),
