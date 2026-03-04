@@ -1,7 +1,6 @@
 import { corsHeaders } from '../lib/cors.js';
+import { callGroqWithRotation, DEFAULT_MODEL } from '../lib/groq.js';
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama-3.3-70b-versatile';
 const MAX_TRANSCRIPT_CHARS = 28000;
 
 const SYSTEM_PROMPT = `You are a research assistant. Summarize this YouTube video transcript in 3-5 concise paragraphs. Include:
@@ -96,57 +95,27 @@ export async function handleSummarize(request, env) {
     );
   }
 
-  // Call Groq
-  if (!env.GROQ_API_KEY) {
-    return new Response(
-      JSON.stringify({ error: 'GROQ_API_KEY not configured' }),
-      { status: 500, headers }
-    );
-  }
-
   const transcript = video.transcript.slice(0, MAX_TRANSCRIPT_CHARS);
 
-  let groqResponse;
+  let groqData;
   try {
-    groqResponse = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${env.GROQ_API_KEY}`,
+    groqData = await callGroqWithRotation(env, [
+      { role: 'system', content: SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: `Please summarize this transcript from the video "${video.title}":\n\n${transcript}`,
       },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: `Please summarize this transcript from the video "${video.title}":\n\n${transcript}`,
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 1500,
-      }),
+    ], {
+      temperature: 0.3,
+      max_tokens: 1500,
     });
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: 'Failed to reach Groq API', detail: err.message }),
+      JSON.stringify({ error: 'Groq API error', detail: err.message }),
       { status: 502, headers }
     );
   }
 
-  if (!groqResponse.ok) {
-    const errText = await groqResponse.text();
-    return new Response(
-      JSON.stringify({
-        error: 'Groq API error',
-        status: groqResponse.status,
-        detail: errText,
-      }),
-      { status: 502, headers }
-    );
-  }
-
-  const groqData = await groqResponse.json();
   const summary = groqData.choices?.[0]?.message?.content || '';
 
   if (!summary) {
@@ -158,14 +127,14 @@ export async function handleSummarize(request, env) {
 
   // Save summary back to R2
   store.videos[idx].summary = summary;
-  store.videos[idx].summaryModel = MODEL;
+  store.videos[idx].summaryModel = DEFAULT_MODEL;
   await writeStore(env, store);
 
   return new Response(
     JSON.stringify({
       videoId: video.id,
       summary,
-      model: MODEL,
+      model: DEFAULT_MODEL,
       cached: false,
     }),
     { headers }

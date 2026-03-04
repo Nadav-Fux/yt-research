@@ -9,4 +9,5 @@ bucket_name = "yt-research-data"
 
 # Secrets (set via wrangler secret put):
 # GROQ_API_KEY
+# GROQ_KEYS  (comma-separated, 3 keys for rotation)
 # INGEST_TOKEN

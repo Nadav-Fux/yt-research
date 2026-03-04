@@ -1045,6 +1045,7 @@ function refreshData() {
       '<button class="rab-btn rab-btn-purple" id="rab-extract" type="button">' +
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>' +
         ' Extract Best</button>' +
+      '<button class="rab-btn rab-btn-hebrew" id="rab-translate" type="button">\ud83c\uddee\ud83c\uddf1 Translate</button>' +
       '<button class="rab-btn rab-btn-dim" id="rab-clear" type="button">Clear</button>';
     document.body.appendChild(bar);
     floatingBar = bar;
@@ -1053,6 +1054,7 @@ function refreshData() {
     bar.querySelector('#rab-select-all').addEventListener('click', toggleSelectAll);
     bar.querySelector('#rab-copy-all').addEventListener('click', copyAllSelected);
     bar.querySelector('#rab-extract').addEventListener('click', function() { showToast('Coming soon'); });
+    bar.querySelector('#rab-translate').addEventListener('click', batchTranslateSelected);
     bar.querySelector('#rab-clear').addEventListener('click', clearSelection);
   }
 
@@ -1118,6 +1120,82 @@ function refreshData() {
       document.body.removeChild(ta);
       showToast(selectedIds.size + ' transcript(s) copied!');
     });
+  }
+
+  /* ── Batch Translate Selected ── */
+  function batchTranslateSelected() {
+    var checkboxes = document.querySelectorAll('.reader-section-checkbox:checked');
+    if (checkboxes.length === 0) { showToast('No videos selected'); return; }
+
+    var videoIds = [];
+    checkboxes.forEach(function(cb) { videoIds.push(cb.dataset.videoId); });
+
+    var total = videoIds.length;
+    var current = 0;
+    var succeeded = 0;
+    var rabTranslate = document.getElementById('rab-translate');
+    if (rabTranslate) {
+      rabTranslate.disabled = true;
+      rabTranslate.setAttribute('aria-busy', 'true');
+    }
+
+    function next() {
+      if (current >= total) {
+        if (rabTranslate) {
+          rabTranslate.disabled = false;
+          rabTranslate.removeAttribute('aria-busy');
+          rabTranslate.innerHTML = '\ud83c\uddee\ud83c\uddf1 Translate';
+        }
+        showToast('\u05ea\u05d5\u05e8\u05d2\u05dd ' + succeeded + '/' + total + ' \u05ea\u05de\u05dc\u05d9\u05dc\u05d9\u05dd');
+        return;
+      }
+      var videoId = videoIds[current];
+      current++;
+      if (rabTranslate) rabTranslate.innerHTML = '<span class="spinner"></span> Translating ' + current + '/' + total + '...';
+
+      /* Check cache first */
+      var cached = window.aiExtract && window.aiExtract.cache ? window.aiExtract.cache.get(videoId) : null;
+      if (cached && cached.translatedTranscript) {
+        succeeded++;
+        var section = document.getElementById('reader-section-' + videoId);
+        if (section) {
+          /* Ensure tabs exist */
+          if (typeof window.aiExtract !== 'undefined') {
+            /* Tabs are auto-ensured on switchTab */
+          }
+        }
+        next();
+        return;
+      }
+
+      var section = document.getElementById('reader-section-' + videoId);
+      if (!section) { next(); return; }
+      var transcriptEl = section.querySelector('.reader-section-transcript');
+      if (!transcriptEl) { next(); return; }
+      var text = transcriptEl.textContent;
+      if (!text || text.trim().length < 10) { next(); return; }
+
+      fetch(API + '/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text, targetLang: 'he', videoId: videoId })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) throw new Error(data.error);
+        /* Store in AI extract cache */
+        if (window.aiExtract && window.aiExtract.cache) {
+          var c = window.aiExtract.cache.get(videoId) || {};
+          c.translatedTranscript = data.translated;
+          window.aiExtract.cache.set(videoId, c);
+        }
+        succeeded++;
+      })
+      .catch(function() { /* skip failed */ })
+      .finally(next);
+    }
+
+    next();
   }
 
   /* ── Clear Selection ── */
@@ -1357,12 +1435,15 @@ function refreshData() {
     });
   }
 
+  /* ── Auto-translate state ── */
+  var autoTranslate = false;
+
   /* ── Call n8n extraction ── */
-  function callExtract(transcript, prompt, videoId, videoTitle) {
+  function callExtract(transcript, prompt, videoId, videoTitle, translate) {
     return fetch(N8N_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript: transcript, prompt: prompt, videoId: videoId, videoTitle: videoTitle })
+      body: JSON.stringify({ transcript: transcript, prompt: prompt, videoId: videoId, videoTitle: videoTitle, translate: !!translate })
     })
     .then(function(r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1410,7 +1491,16 @@ function refreshData() {
     prompts.forEach(function(p) {
       html += '<button class="ai-prompt-option' + (defaultId === p.id ? ' selected' : '') + '" role="menuitem" tabindex="-1" data-id="' + p.id + '">' + esc(p.name) + '</button>';
     });
+    html += '<label class="ai-auto-translate-label"><input type="checkbox" class="ai-auto-translate-cb"' + (autoTranslate ? ' checked' : '') + '> \ud83c\uddee\ud83c\uddf1 Auto-translate to Hebrew</label>';
     dropdown.innerHTML = html;
+
+    /* Wire auto-translate checkbox */
+    var atCb = dropdown.querySelector('.ai-auto-translate-cb');
+    if (atCb) {
+      atCb.addEventListener('change', function() {
+        autoTranslate = atCb.checked;
+      });
+    }
 
     var items = dropdown.querySelectorAll('[role="menuitem"]');
 
@@ -1563,10 +1653,14 @@ function refreshData() {
     section.classList.add('ai-extracting');
     announce('Extracting transcript for ' + videoTitle);
 
-    callExtract(transcript, promptText, videoId, videoTitle)
+    callExtract(transcript, promptText, videoId, videoTitle, autoTranslate)
       .then(function(data) {
         var result = data.result || data.output || 'No result returned';
-        aiExtractCache.set(videoId, { text: result, model: data.model || 'AI', imagePrompt: data.imagePrompt || '' });
+        var cacheEntry = { text: result, model: data.model || 'AI', imagePrompt: data.imagePrompt || '' };
+        if (data.translatedResult) {
+          cacheEntry.translatedExtract = data.translatedResult;
+        }
+        aiExtractCache.set(videoId, cacheEntry);
         ensureTabs(videoId, section);
         switchTab(videoId, section, 'ai');
         resetExtractBtn(btn);
@@ -1600,8 +1694,10 @@ function refreshData() {
     var tablistId = 'ai-tablist-' + videoId;
     var panelOrigId = 'ai-panel-orig-' + videoId;
     var panelAiId = 'ai-panel-ai-' + videoId;
+    var panelHeId = 'ai-panel-he-' + videoId;
     var tabOrigId = 'ai-tab-orig-' + videoId;
     var tabAiId = 'ai-tab-ai-' + videoId;
+    var tabHeId = 'ai-tab-he-' + videoId;
 
     /* Tab bar */
     var tabs = document.createElement('div');
@@ -1611,7 +1707,8 @@ function refreshData() {
     tabs.id = tablistId;
     tabs.innerHTML =
       '<button class="ai-tab active" role="tab" id="' + tabOrigId + '" aria-selected="true" aria-controls="' + panelOrigId + '" tabindex="0" data-tab="original" data-vid="' + videoId + '">Original</button>' +
-      '<button class="ai-tab" role="tab" id="' + tabAiId + '" aria-selected="false" aria-controls="' + panelAiId + '" tabindex="-1" data-tab="ai" data-vid="' + videoId + '">AI Extract</button>';
+      '<button class="ai-tab" role="tab" id="' + tabAiId + '" aria-selected="false" aria-controls="' + panelAiId + '" tabindex="-1" data-tab="ai" data-vid="' + videoId + '">AI Extract</button>' +
+      '<button class="ai-tab" role="tab" id="' + tabHeId + '" aria-selected="false" aria-controls="' + panelHeId + '" tabindex="-1" data-tab="hebrew" data-vid="' + videoId + '">\u05e2\u05d1\u05e8\u05d9\u05ea \ud83c\uddee\ud83c\uddf1</button>';
 
     transcriptEl.parentNode.insertBefore(tabs, transcriptEl);
 
@@ -1630,6 +1727,18 @@ function refreshData() {
     aiDiv.setAttribute('tabindex', '0');
     aiDiv.hidden = true;
     transcriptEl.parentNode.insertBefore(aiDiv, transcriptEl.nextSibling);
+
+    /* Hebrew translation tabpanel */
+    var heDiv = document.createElement('div');
+    heDiv.className = 'ai-extract-content ai-hebrew-content';
+    heDiv.id = panelHeId;
+    heDiv.setAttribute('role', 'tabpanel');
+    heDiv.setAttribute('aria-labelledby', tabHeId);
+    heDiv.setAttribute('tabindex', '0');
+    heDiv.setAttribute('dir', 'rtl');
+    heDiv.setAttribute('lang', 'he');
+    heDiv.hidden = true;
+    aiDiv.parentNode.insertBefore(heDiv, aiDiv.nextSibling);
 
     /* Click handlers */
     var tabButtons = tabs.querySelectorAll('[role="tab"]');
@@ -1676,24 +1785,120 @@ function refreshData() {
     });
 
     var transcriptEl = section.querySelector('.reader-section-transcript');
-    var aiDiv = section.querySelector('.ai-extract-content');
-    if (!transcriptEl || !aiDiv) return;
+    var aiDiv = section.querySelector('.ai-extract-content:not(.ai-hebrew-content)');
+    var heDiv = section.querySelector('.ai-hebrew-content');
+    if (!transcriptEl) return;
+
+    // Hide all panels
+    transcriptEl.hidden = true;
+    if (aiDiv) aiDiv.hidden = true;
+    if (heDiv) heDiv.hidden = true;
 
     if (tabName === 'ai') {
-      transcriptEl.hidden = true;
-      aiDiv.hidden = false;
-      var cached = aiExtractCache.get(videoId);
-      if (cached) {
-        aiDiv.innerHTML =
-          renderAIImage(videoId, cached.imagePrompt) +
-          '<div class="ai-extract-text">' + renderAIText(cached.text) + '</div>' +
-          '<div class="ai-extract-model">Generated by ' + esc(cached.model) + '</div>';
-        wireImageControls(aiDiv, videoId);
+      if (aiDiv) {
+        aiDiv.hidden = false;
+        var cached = aiExtractCache.get(videoId);
+        if (cached) {
+          var translateBtnHtml = cached.translatedExtract
+            ? '<button type="button" class="ai-translate-extract-btn translated" disabled>\u2705 \u05ea\u05d5\u05e8\u05d2\u05dd</button>'
+            : '<button type="button" class="ai-translate-extract-btn">\ud83c\uddee\ud83c\uddf1 \u05ea\u05e8\u05d2\u05dd \u05dc\u05e2\u05d1\u05e8\u05d9\u05ea</button>';
+          aiDiv.innerHTML =
+            renderAIImage(videoId, cached.imagePrompt) +
+            '<div class="ai-extract-text">' + renderAIText(cached.text) + '</div>' +
+            (cached.translatedExtract
+              ? '<div class="ai-translated-extract" dir="rtl" lang="he"><div class="ai-translated-header">\ud83c\uddee\ud83c\uddf1 \u05ea\u05e8\u05d2\u05d5\u05dd \u05dc\u05e2\u05d1\u05e8\u05d9\u05ea</div><div class="ai-extract-text">' + renderAIText(cached.translatedExtract) + '</div></div>'
+              : '') +
+            translateBtnHtml +
+            '<div class="ai-extract-model">Generated by ' + esc(cached.model) + '</div>';
+          wireImageControls(aiDiv, videoId);
+          wireTranslateExtractBtn(aiDiv, videoId);
+        }
+      }
+    } else if (tabName === 'hebrew') {
+      if (heDiv) {
+        heDiv.hidden = false;
+        var cached = aiExtractCache.get(videoId);
+        if (cached && cached.translatedTranscript) {
+          heDiv.innerHTML = '<div class="ai-extract-text" dir="rtl" lang="he">' + esc(cached.translatedTranscript) + '</div>' +
+            '<div class="ai-extract-model">\u05ea\u05d5\u05e8\u05d2\u05dd \u05e2\u05dc \u05d9\u05d3\u05d9 llama-3.3-70b-versatile</div>';
+        } else {
+          // Trigger translation on demand
+          translateTranscript(videoId, section, heDiv);
+        }
       }
     } else {
+      // original
       transcriptEl.hidden = false;
-      aiDiv.hidden = true;
     }
+  }
+
+  /* ── Translate transcript on demand ── */
+  function translateTranscript(videoId, section, heDiv) {
+    var transcriptEl = section.querySelector('.reader-section-transcript');
+    if (!transcriptEl) return;
+    var text = transcriptEl.textContent;
+    if (!text || text.trim().length < 10) {
+      heDiv.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">\u05d0\u05d9\u05df \u05ea\u05de\u05dc\u05d9\u05dc \u05dc\u05ea\u05e8\u05d2\u05d5\u05dd</div>';
+      return;
+    }
+
+    heDiv.innerHTML = '<div style="text-align:center;padding:30px"><span class="spinner"></span> \u05de\u05ea\u05e8\u05d2\u05dd...</div>';
+    announce('\u05de\u05ea\u05e8\u05d2\u05dd \u05ea\u05de\u05dc\u05d9\u05dc');
+
+    fetch(API + '/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text, targetLang: 'he', videoId: videoId })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) throw new Error(data.error);
+      // Cache result
+      var cached = aiExtractCache.get(videoId) || {};
+      cached.translatedTranscript = data.translated;
+      aiExtractCache.set(videoId, cached);
+      heDiv.innerHTML = '<div class="ai-extract-text" dir="rtl" lang="he">' + esc(data.translated) + '</div>' +
+        '<div class="ai-extract-model">\u05ea\u05d5\u05e8\u05d2\u05dd \u05e2\u05dc \u05d9\u05d3\u05d9 ' + esc(data.model) + '</div>';
+      announce('\u05ea\u05e8\u05d2\u05d5\u05dd \u05d4\u05d5\u05e9\u05dc\u05dd');
+      showToast('\u05ea\u05e8\u05d2\u05d5\u05dd \u05d4\u05d5\u05e9\u05dc\u05dd!');
+    })
+    .catch(function(err) {
+      heDiv.innerHTML = '<div style="text-align:center;padding:20px;color:var(--accent)">\u05ea\u05e8\u05d2\u05d5\u05dd \u05e0\u05db\u05e9\u05dc: ' + esc(err.message) + '</div>';
+      showToast('\u05ea\u05e8\u05d2\u05d5\u05dd \u05e0\u05db\u05e9\u05dc');
+    });
+  }
+
+  /* ── Wire translate extract button ── */
+  function wireTranslateExtractBtn(container, videoId) {
+    var btn = container.querySelector('.ai-translate-extract-btn:not(.translated)');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      var cached = aiExtractCache.get(videoId);
+      if (!cached || !cached.text) return;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> \u05de\u05ea\u05e8\u05d2\u05dd...';
+
+      fetch(API + '/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: cached.text, targetLang: 'he', videoId: videoId })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) throw new Error(data.error);
+        cached.translatedExtract = data.translated;
+        aiExtractCache.set(videoId, cached);
+        // Re-render AI tab to show translated extract
+        var section = document.getElementById('reader-section-' + videoId);
+        if (section) switchTab(videoId, section, 'ai');
+        showToast('\u05ea\u05e8\u05d2\u05d5\u05dd AI Extract \u05d4\u05d5\u05e9\u05dc\u05dd!');
+      })
+      .catch(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '\ud83c\uddee\ud83c\uddf1 \u05ea\u05e8\u05d2\u05dd \u05dc\u05e2\u05d1\u05e8\u05d9\u05ea';
+        showToast('\u05ea\u05e8\u05d2\u05d5\u05dd \u05e0\u05db\u05e9\u05dc: ' + err.message);
+      });
+    });
   }
 
   /* ════════════════════════════════════════════════
@@ -1786,10 +1991,14 @@ function refreshData() {
       var videoTitle = titleEl ? titleEl.textContent : '';
       section.classList.add('ai-extracting');
 
-      callExtract(transcript, promptText, videoId, videoTitle)
+      callExtract(transcript, promptText, videoId, videoTitle, autoTranslate)
         .then(function(data) {
           var result = data.result || data.output || 'No result returned';
-          aiExtractCache.set(videoId, { text: result, model: data.model || 'AI', imagePrompt: data.imagePrompt || '' });
+          var cacheEntry = { text: result, model: data.model || 'AI', imagePrompt: data.imagePrompt || '' };
+          if (data.translatedResult) {
+            cacheEntry.translatedExtract = data.translatedResult;
+          }
+          aiExtractCache.set(videoId, cacheEntry);
           ensureTabs(videoId, section);
           switchTab(videoId, section, 'ai');
           section.classList.remove('ai-extracting');

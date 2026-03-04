@@ -5,6 +5,7 @@ import { handleIngest } from './handlers/ingest.js';
 import { handleExport } from './handlers/export.js';
 import { handleScrape } from './handlers/scrape.js';
 import { handleListPrompts, handleCreatePrompt, handleUpdatePrompt, handleDeletePrompt } from './handlers/prompts.js';
+import { handleTranslate } from './handlers/translate.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -32,6 +33,11 @@ export default {
       // --- Route: POST /api/summarize ---
       if (method === 'POST' && pathname === '/api/summarize') {
         return await handleSummarize(request, env);
+      }
+
+      // --- Route: POST /api/translate ---
+      if (method === 'POST' && pathname === '/api/translate') {
+        return await handleTranslate(request, env);
       }
 
       // --- Route: POST /api/ingest ---
@@ -98,6 +104,7 @@ export default {
             'GET  /api/videos',
             'GET  /api/videos/:id',
             'POST /api/summarize',
+            'POST /api/translate',
             'POST /api/ingest',
             'POST /api/scrape',
             'GET  /api/export',

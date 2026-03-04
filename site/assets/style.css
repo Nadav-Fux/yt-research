@@ -699,6 +699,12 @@ body.drawer-open { overflow: hidden; }
 .ai-tab[data-tab="ai"].active::after {
   background: var(--purple);
 }
+.ai-tab[data-tab="hebrew"].active {
+  color: #2563eb;
+}
+.ai-tab[data-tab="hebrew"].active::after {
+  background: #2563eb;
+}
 
 /* When tabs exist, remove top border-radius from transcript */
 .ai-tabs + .reader-section-transcript,
@@ -1179,4 +1185,97 @@ body.pm-open {
   .ai-extract-image { max-height: 240px; }
   .ai-extract-image-controls { flex-direction: column; }
   .ai-image-retry-btn { align-self: flex-end; }
+}
+
+/* ── Hebrew Translation Styles ── */
+.ai-hebrew-content {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Segoe UI', 'Arial', var(--font);
+  line-height: 1.9;
+}
+.ai-hebrew-content .ai-extract-text {
+  font-family: 'Segoe UI', 'Arial', var(--font);
+  font-size: .9rem;
+}
+
+/* Translate Extract Button */
+.ai-translate-extract-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  margin-top: 12px;
+  background: rgba(37, 99, 235, .12);
+  border: 1px solid rgba(37, 99, 235, .3);
+  border-radius: 6px;
+  color: #2563eb;
+  font-family: var(--font);
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+.ai-translate-extract-btn:hover {
+  background: rgba(37, 99, 235, .22);
+  border-color: #2563eb;
+}
+.ai-translate-extract-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+.ai-translate-extract-btn .spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+  border-top-color: #2563eb;
+}
+
+/* Translated Extract Block */
+.ai-translated-extract {
+  margin-top: 16px;
+  padding: 16px 20px;
+  background: rgba(37, 99, 235, .06);
+  border: 1px solid rgba(37, 99, 235, .2);
+  border-radius: 8px;
+}
+.ai-translated-header {
+  font-size: .78rem;
+  font-weight: 700;
+  color: #2563eb;
+  margin-bottom: 10px;
+  text-align: right;
+}
+
+/* Floating bar translate button */
+.rab-btn-hebrew {
+  background: rgba(37, 99, 235, .15);
+  border-color: rgba(37, 99, 235, .3);
+  color: #2563eb;
+}
+.rab-btn-hebrew:hover {
+  background: rgba(37, 99, 235, .28);
+}
+
+/* Auto-translate checkbox in dropdown */
+.ai-auto-translate-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  font-size: .8rem;
+  color: #2563eb;
+  cursor: pointer;
+  transition: background .12s;
+}
+.ai-auto-translate-label:hover {
+  background: var(--surface2);
+}
+.ai-auto-translate-cb {
+  accent-color: #2563eb;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
 }
