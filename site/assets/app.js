@@ -1213,6 +1213,7 @@ function refreshData() {
   var PROMPTS_API = 'https://yt-research-api.nadavf.workers.dev/api/prompts';
   var BUILTIN_DEFAULT_PROMPT = 'You are a research analyst. Extract the most valuable and actionable information from this YouTube video transcript. Focus on:\n- Key insights and unique perspectives\n- Specific techniques, tools, or methods mentioned\n- Important facts, numbers, and data points\n- Actionable advice and recommendations\nSkip filler, repetition, sponsor segments, and pleasantries. Be concise but thorough. Use bullet points.';
 
+  var POLLINATIONS_URL = 'https://image.pollinations.ai/prompt/';
   var STAR_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg>';
   var GEAR_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>';
 
@@ -1284,6 +1285,65 @@ function refreshData() {
 
   function getDefaultPromptId(data) {
     return data.defaultPromptId || '__builtin__';
+  }
+
+  /* ── Pollinations image helpers ── */
+  function buildPollinationsUrl(prompt) {
+    return POLLINATIONS_URL + encodeURIComponent(prompt) + '?width=768&height=432&nologo=true&seed=' + Math.floor(Math.random() * 100000);
+  }
+
+  function renderAIImage(videoId, imagePrompt) {
+    if (!imagePrompt) return '';
+    var ep = esc(imagePrompt);
+    var imgUrl = buildPollinationsUrl(imagePrompt);
+    return '<div class="ai-extract-image-wrap" data-vid="' + esc(videoId) + '">' +
+      '<div class="ai-extract-image-container">' +
+        '<img class="ai-extract-image" src="' + imgUrl + '" alt="AI concept image" loading="lazy">' +
+        '<div class="ai-extract-image-loading"><span class="ai-spinner"></span> Generating image...</div>' +
+      '</div>' +
+      '<div class="ai-extract-image-controls">' +
+        '<input type="text" class="ai-image-prompt-input" value="' + ep + '" aria-label="Image prompt" title="Edit and press Retry">' +
+        '<button type="button" class="ai-image-retry-btn" title="Regenerate image">&#x21bb; Retry</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function wireImageControls(container, videoId) {
+    var retryBtn = container.querySelector('.ai-image-retry-btn');
+    var promptInput = container.querySelector('.ai-image-prompt-input');
+    var imgContainer = container.querySelector('.ai-extract-image-container');
+    if (!retryBtn || !promptInput || !imgContainer) return;
+
+    function regenerate() {
+      var newPrompt = promptInput.value.trim();
+      if (!newPrompt) { showToast('Image prompt is empty'); return; }
+      var cached = aiExtractCache.get(videoId);
+      if (cached) cached.imagePrompt = newPrompt;
+      var newUrl = buildPollinationsUrl(newPrompt);
+      imgContainer.innerHTML =
+        '<img class="ai-extract-image" src="' + newUrl + '" alt="AI concept image" loading="lazy">' +
+        '<div class="ai-extract-image-loading"><span class="ai-spinner"></span> Generating image...</div>';
+      wireImgLoad(imgContainer);
+      showToast('Regenerating image...');
+    }
+
+    retryBtn.addEventListener('click', regenerate);
+    promptInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); regenerate(); }
+    });
+    wireImgLoad(imgContainer);
+  }
+
+  function wireImgLoad(imgContainer) {
+    var img = imgContainer.querySelector('.ai-extract-image');
+    if (!img) return;
+    img.addEventListener('load', function() {
+      var ld = imgContainer.querySelector('.ai-extract-image-loading');
+      if (ld) ld.remove();
+    });
+    img.addEventListener('error', function() {
+      imgContainer.innerHTML = '<div class="ai-extract-image-error">Image generation failed \u2014 edit prompt and retry</div>';
+    });
   }
 
   /* ── Call n8n extraction ── */
@@ -1495,7 +1555,7 @@ function refreshData() {
     callExtract(transcript, promptText, videoId, videoTitle)
       .then(function(data) {
         var result = data.result || data.output || 'No result returned';
-        aiExtractCache.set(videoId, { text: result, model: data.model || 'AI' });
+        aiExtractCache.set(videoId, { text: result, model: data.model || 'AI', imagePrompt: data.imagePrompt || '' });
         ensureTabs(videoId, section);
         switchTab(videoId, section, 'ai');
         resetExtractBtn(btn);
@@ -1613,8 +1673,11 @@ function refreshData() {
       aiDiv.hidden = false;
       var cached = aiExtractCache.get(videoId);
       if (cached) {
-        aiDiv.innerHTML = '<div class="ai-extract-text">' + renderAIText(cached.text) + '</div>' +
+        aiDiv.innerHTML =
+          renderAIImage(videoId, cached.imagePrompt) +
+          '<div class="ai-extract-text">' + renderAIText(cached.text) + '</div>' +
           '<div class="ai-extract-model">Generated by ' + esc(cached.model) + '</div>';
+        wireImageControls(aiDiv, videoId);
       }
     } else {
       transcriptEl.hidden = false;
@@ -1715,7 +1778,7 @@ function refreshData() {
       callExtract(transcript, promptText, videoId, videoTitle)
         .then(function(data) {
           var result = data.result || data.output || 'No result returned';
-          aiExtractCache.set(videoId, { text: result, model: data.model || 'AI' });
+          aiExtractCache.set(videoId, { text: result, model: data.model || 'AI', imagePrompt: data.imagePrompt || '' });
           ensureTabs(videoId, section);
           switchTab(videoId, section, 'ai');
           section.classList.remove('ai-extracting');
