@@ -2346,3 +2346,111 @@ function refreshData() {
     cache: aiExtractCache
   };
 })();
+
+/* ── Groq API Status Widget ── */
+(function() {
+  'use strict';
+
+  function fmtTokens(n) {
+    if (n == null || n === '') return '?';
+    n = Number(n);
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+    return String(n);
+  }
+
+  function pct(remaining, limit) {
+    if (!remaining || !limit) return 0;
+    return Math.round((Number(remaining) / Number(limit)) * 100);
+  }
+
+  function barColor(p) {
+    if (p > 60) return 'var(--green)';
+    if (p > 25) return 'var(--yellow)';
+    return 'var(--accent)';
+  }
+
+  function injectStatusButton() {
+    var searchBar = document.getElementById('reader-search-bar');
+    if (!searchBar || searchBar.querySelector('.groq-status-btn')) return;
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'groq-status-btn';
+    btn.title = 'Groq API Status';
+    btn.setAttribute('aria-label', 'View Groq API quota');
+    btn.innerHTML = '\u26a1 API';
+    searchBar.appendChild(btn);
+
+    btn.addEventListener('click', function() {
+      var existing = document.querySelector('.groq-status-popover');
+      if (existing) { existing.remove(); return; }
+      showStatusPopover(btn);
+    });
+  }
+
+  function showStatusPopover(anchor) {
+    var pop = document.createElement('div');
+    pop.className = 'groq-status-popover';
+    pop.innerHTML = '<div class="groq-pop-title">\u26a1 Groq API Keys</div><div class="groq-pop-loading"><span class="spinner"></span> Loading...</div>';
+    document.body.appendChild(pop);
+
+    /* Position below the button */
+    var rect = anchor.getBoundingClientRect();
+    pop.style.top = (rect.bottom + 8) + 'px';
+    pop.style.right = (window.innerWidth - rect.right) + 'px';
+
+    /* Close on outside click */
+    function outsideClick(e) {
+      if (!pop.contains(e.target) && e.target !== anchor) {
+        pop.remove();
+        document.removeEventListener('mousedown', outsideClick, true);
+      }
+    }
+    setTimeout(function() { document.addEventListener('mousedown', outsideClick, true); }, 10);
+
+    /* Fetch status */
+    fetch(API + '/groq-status')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) throw new Error(data.error);
+        var html = '<div class="groq-pop-title">\u26a1 Groq API Keys (' + data.totalKeys + ')</div>';
+        data.keys.forEach(function(k) {
+          var tokPct = pct(k.tokensRemaining, k.tokensLimit);
+          var reqPct = pct(k.requestsRemaining, k.requestsLimit);
+          var statusClass = k.status === 'active' ? 'groq-key-active' : 'groq-key-error';
+          html += '<div class="groq-key-item">' +
+            '<div class="groq-key-header">' +
+              '<span class="groq-key-label ' + statusClass + '">' + esc(k.label) + '</span>' +
+              '<span class="groq-key-status-dot ' + statusClass + '"></span>' +
+            '</div>' +
+            '<div class="groq-key-row">' +
+              '<span class="groq-key-metric">Tokens</span>' +
+              '<div class="groq-bar-wrap"><div class="groq-bar" style="width:' + tokPct + '%;background:' + barColor(tokPct) + '"></div></div>' +
+              '<span class="groq-key-val">' + fmtTokens(k.tokensRemaining) + ' / ' + fmtTokens(k.tokensLimit) + '</span>' +
+            '</div>' +
+            '<div class="groq-key-row">' +
+              '<span class="groq-key-metric">Requests</span>' +
+              '<div class="groq-bar-wrap"><div class="groq-bar" style="width:' + reqPct + '%;background:' + barColor(reqPct) + '"></div></div>' +
+              '<span class="groq-key-val">' + fmtTokens(k.requestsRemaining) + ' / ' + fmtTokens(k.requestsLimit) + '</span>' +
+            '</div>' +
+            (k.tokensReset ? '<div class="groq-key-reset">Resets: ' + esc(k.tokensReset) + '</div>' : '') +
+          '</div>';
+        });
+        html += '<div class="groq-pop-time">Updated: ' + new Date(data.timestamp).toLocaleTimeString() + '</div>';
+        pop.innerHTML = html;
+      })
+      .catch(function(err) {
+        pop.innerHTML = '<div class="groq-pop-title">\u26a1 Groq API Keys</div><div class="groq-pop-error">Failed: ' + esc(err.message) + '</div>';
+      });
+  }
+
+  /* Inject on reader content changes */
+  var readerContent = document.getElementById('reader-content');
+  if (readerContent) {
+    var obs = new MutationObserver(injectStatusButton);
+    obs.observe(readerContent, { childList: true });
+  }
+  document.addEventListener('DOMContentLoaded', function() { setTimeout(injectStatusButton, 700); });
+  injectStatusButton();
+})();

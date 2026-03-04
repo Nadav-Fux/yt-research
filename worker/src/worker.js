@@ -6,6 +6,7 @@ import { handleExport } from './handlers/export.js';
 import { handleScrape } from './handlers/scrape.js';
 import { handleListPrompts, handleCreatePrompt, handleUpdatePrompt, handleDeletePrompt } from './handlers/prompts.js';
 import { handleTranslate } from './handlers/translate.js';
+import { handleGroqStatus } from './handlers/groqStatus.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -43,6 +44,11 @@ export default {
       // --- Route: POST /api/ingest ---
       if (method === 'POST' && pathname === '/api/ingest') {
         return await handleIngest(request, env);
+      }
+
+      // --- Route: GET /api/groq-status ---
+      if (method === 'GET' && pathname === '/api/groq-status') {
+        return await handleGroqStatus(request, env);
       }
 
       // --- Route: GET /api/export ---
@@ -107,6 +113,7 @@ export default {
             'POST /api/translate',
             'POST /api/ingest',
             'POST /api/scrape',
+            'GET  /api/groq-status',
             'GET  /api/export',
             'GET  /api/prompts',
             'POST /api/prompts',

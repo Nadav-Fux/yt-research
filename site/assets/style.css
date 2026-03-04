@@ -1279,3 +1279,116 @@ body.pm-open {
   height: 14px;
   cursor: pointer;
 }
+
+/* ── Groq API Status Widget ── */
+.groq-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  background: rgba(245, 158, 11, .12);
+  border: 1px solid rgba(245, 158, 11, .25);
+  border-radius: 8px;
+  color: var(--yellow);
+  font-family: var(--font);
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.groq-status-btn:hover {
+  background: rgba(245, 158, 11, .22);
+  border-color: var(--yellow);
+}
+.groq-status-popover {
+  position: fixed;
+  z-index: 250;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 320px;
+  max-width: 400px;
+  box-shadow: 0 12px 48px rgba(0,0,0,.5);
+  animation: aiDropIn .15s ease-out;
+}
+.groq-pop-title {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--yellow);
+  margin-bottom: 12px;
+}
+.groq-pop-loading, .groq-pop-error {
+  font-size: .82rem;
+  color: var(--text-dim);
+  padding: 8px 0;
+}
+.groq-pop-error { color: var(--accent); }
+.groq-pop-time {
+  font-size: .7rem;
+  color: var(--text-dim);
+  margin-top: 10px;
+  text-align: right;
+}
+.groq-key-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.groq-key-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.groq-key-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.groq-key-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.groq-key-status-dot.groq-key-active { background: var(--green); }
+.groq-key-status-dot.groq-key-error { background: var(--accent); }
+.groq-key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.groq-key-metric {
+  font-size: .7rem;
+  color: var(--text-dim);
+  width: 55px;
+  flex-shrink: 0;
+}
+.groq-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.groq-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .3s;
+}
+.groq-key-val {
+  font-size: .7rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  min-width: 80px;
+  text-align: right;
+}
+.groq-key-reset {
+  font-size: .65rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
