@@ -856,6 +856,7 @@ function refreshData() {
 
     renderReaderToc(results);
     renderReaderContent(results);
+    setupScrollSpy(results);
     wireReaderSearch(results);
   }
 
@@ -886,8 +887,6 @@ function refreshData() {
       });
     });
 
-    /* Scroll spy: highlight TOC item on scroll */
-    setupScrollSpy(results);
   }
 
   function setupScrollSpy(results) {
@@ -1293,7 +1292,7 @@ function refreshData() {
   }
 
   function renderAIImage(videoId, imagePrompt) {
-    if (!imagePrompt) return '';
+    if (!imagePrompt) return '<div class="ai-extract-image-wrap" data-vid="' + esc(videoId) + '"><div class="ai-extract-image-controls"><input type="text" class="ai-image-prompt-input" value="" placeholder="Describe the image you want..." aria-label="Image prompt"><button type="button" class="ai-image-retry-btn" title="Generate image">&#x1f3a8; Generate</button></div></div>';
     var ep = esc(imagePrompt);
     var imgUrl = buildPollinationsUrl(imagePrompt);
     return '<div class="ai-extract-image-wrap" data-vid="' + esc(videoId) + '">' +
@@ -1320,11 +1319,23 @@ function refreshData() {
       var cached = aiExtractCache.get(videoId);
       if (cached) cached.imagePrompt = newPrompt;
       var newUrl = buildPollinationsUrl(newPrompt);
-      imgContainer.innerHTML =
-        '<img class="ai-extract-image" src="' + newUrl + '" alt="AI concept image" loading="lazy">' +
-        '<div class="ai-extract-image-loading"><span class="ai-spinner"></span> Generating image...</div>';
-      wireImgLoad(imgContainer);
-      showToast('Regenerating image...');
+      /* Ensure image container exists */
+      if (!imgContainer) {
+        var wrap = container.querySelector('.ai-extract-image-wrap');
+        if (wrap) {
+          var div = document.createElement('div');
+          div.className = 'ai-extract-image-container';
+          wrap.insertBefore(div, wrap.firstChild);
+          imgContainer = div;
+        }
+      }
+      if (imgContainer) {
+        imgContainer.innerHTML =
+          '<img class="ai-extract-image" src="' + newUrl + '" alt="AI concept image" loading="lazy">' +
+          '<div class="ai-extract-image-loading"><span class="ai-spinner"></span> Generating image...</div>';
+        wireImgLoad(imgContainer);
+      }
+      showToast('Generating image...');
     }
 
     retryBtn.addEventListener('click', regenerate);
