@@ -1593,6 +1593,9 @@ function refreshData() {
         header.appendChild(extractBtn);
       }
 
+      /* Always create tabs so Hebrew tab is available immediately */
+      ensureTabs(sectionId, section);
+
       extractBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         handleExtractClick(sectionId, section, extractBtn);
