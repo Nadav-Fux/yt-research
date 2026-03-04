@@ -898,6 +898,7 @@ function refreshData() {
     var tocButtons = $readerToc.querySelectorAll('.reader-toc-item');
     var headerOffset = 80;
     var scrollContainer = $readerContent;
+    var lastActive = -1;
 
     function onScroll() {
       var scrollTop = window.scrollY || document.documentElement.scrollTop;
@@ -911,6 +912,11 @@ function refreshData() {
       tocButtons.forEach(function(b, idx) {
         b.classList.toggle('active', idx === current);
       });
+      /* Auto-scroll TOC to keep active item visible */
+      if (current !== lastActive && tocButtons[current]) {
+        lastActive = current;
+        tocButtons[current].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     }
 
     window.addEventListener('scroll', onScroll, { passive: true });
