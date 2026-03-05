@@ -749,6 +749,8 @@ function refreshData() {
 
         if (view === 'reader') {
           showReaderView();
+        } else if (view === 'gallery') {
+          showGalleryView();
         } else {
           showCardsView();
         }
@@ -756,11 +758,14 @@ function refreshData() {
     });
   }
 
+  var $galleryView = document.getElementById('gallery-view');
+
   function showCardsView() {
     var els = getCardsViewEls();
     if (els.cards) els.cards.style.display = '';
     if (els.sortBar) els.sortBar.style.display = '';
     if ($readerView) $readerView.hidden = true;
+    if ($galleryView) $galleryView.hidden = true;
   }
 
   function showReaderView() {
@@ -770,10 +775,72 @@ function refreshData() {
     if (els.sortBar) els.sortBar.style.display = 'none';
     if (els.filters) els.filters.hidden = true;
     if ($readerView) $readerView.hidden = false;
+    if ($galleryView) $galleryView.hidden = true;
 
     if (!readerLoaded) {
       loadAllTranscripts();
     }
+  }
+
+  function showGalleryView() {
+    var els = getCardsViewEls();
+    if (els.cards) els.cards.style.display = 'none';
+    if (els.empty) els.empty.hidden = true;
+    if (els.sortBar) els.sortBar.style.display = 'none';
+    if ($readerView) $readerView.hidden = true;
+    if ($galleryView) {
+      $galleryView.hidden = false;
+      renderGallery();
+    }
+  }
+
+  function renderGallery() {
+    var container = document.getElementById('gallery-content');
+    if (!container) return;
+
+    // Group filtered videos by topic
+    var groups = {};
+    filteredVideos.forEach(function(v) {
+      var topic = v.topic || 'Uncategorized';
+      if (!groups[topic]) groups[topic] = [];
+      groups[topic].push(v);
+    });
+
+    var html = '';
+    var topics = Object.keys(groups).sort();
+    topics.forEach(function(topic) {
+      var vids = groups[topic];
+      html += '<div class="gallery-topic-group">';
+      html += '<h3 class="gallery-topic-title">' + esc(topic) + '<span class="gallery-count">(' + vids.length + ')</span></h3>';
+      html += '<div class="gallery-grid">';
+      vids.forEach(function(v) {
+        var thumb = v.thumbnail || '';
+        var hasExtract = aiExtractCache.has(v.id);
+        html += '<div class="gallery-card" data-id="' + esc(v.id) + '">';
+        if (thumb) {
+          html += '<img class="gallery-card-thumb" src="' + esc(thumb) + '" alt="" loading="lazy">';
+        }
+        html += '<div class="gallery-card-info">';
+        html += '<div class="gallery-card-title">' + esc(v.title || 'Untitled') + '</div>';
+        html += '<div class="gallery-card-channel">' + esc(v.channel || '') + '</div>';
+        html += '<div class="gallery-card-badges">';
+        if (hasExtract) html += '<span class="gallery-card-badge has-extract">AI Extract</span>';
+        if (v.duration) html += '<span class="gallery-card-badge">' + esc(v.duration) + '</span>';
+        html += '</div></div></div>';
+      });
+      html += '</div></div>';
+    });
+
+    if (!html) html = '<p style="color:var(--text-dim);text-align:center;padding:2rem">No videos to display</p>';
+    container.innerHTML = html;
+
+    // Wire card clicks to open drawer
+    container.querySelectorAll('.gallery-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var id = card.dataset.id;
+        if (id && typeof openDrawer === 'function') openDrawer(id);
+      });
+    });
   }
 
   /* ── Load all transcripts ── */
@@ -1290,7 +1357,7 @@ function refreshData() {
   var PROMPTS_API = 'https://yt-research-api.nadavf.workers.dev/api/prompts';
   var BUILTIN_DEFAULT_PROMPT = 'You are a research analyst. Extract the most valuable and actionable information from this YouTube video transcript. Focus on:\n- Key insights and unique perspectives\n- Specific techniques, tools, or methods mentioned\n- Important facts, numbers, and data points\n- Actionable advice and recommendations\nSkip filler, repetition, sponsor segments, and pleasantries. Be concise but thorough. Use bullet points.';
 
-  var POLLINATIONS_URL = 'https://image.pollinations.ai/prompt/';
+  var IMAGE_API_URL = 'https://yt-research-api.nadavf.workers.dev/api/image';
   var STAR_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg>';
   var GEAR_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>';
 
@@ -1364,15 +1431,15 @@ function refreshData() {
     return data.defaultPromptId || '__builtin__';
   }
 
-  /* ── Pollinations image helpers ── */
-  function buildPollinationsUrl(prompt) {
-    return POLLINATIONS_URL + encodeURIComponent(prompt) + '?width=768&height=432&nologo=true&seed=' + Math.floor(Math.random() * 100000);
+  /* ── Image generation helpers ── */
+  function buildImageUrl(prompt, seed) {
+    return IMAGE_API_URL + '?prompt=' + encodeURIComponent(prompt) + '&seed=' + (seed || Math.floor(Math.random() * 100000));
   }
 
   function renderAIImage(videoId, imagePrompt) {
     if (!imagePrompt) return '<div class="ai-extract-image-wrap" data-vid="' + esc(videoId) + '"><div class="ai-extract-image-controls"><input type="text" class="ai-image-prompt-input" value="" placeholder="Describe the image you want..." aria-label="Image prompt"><button type="button" class="ai-image-retry-btn" title="Generate image">&#x1f3a8; Generate</button></div></div>';
     var ep = esc(imagePrompt);
-    var imgUrl = buildPollinationsUrl(imagePrompt);
+    var imgUrl = buildImageUrl(imagePrompt);
     return '<div class="ai-extract-image-wrap" data-vid="' + esc(videoId) + '">' +
       '<div class="ai-extract-image-container">' +
         '<img class="ai-extract-image" src="' + imgUrl + '" alt="AI concept image" loading="lazy">' +
@@ -1396,7 +1463,7 @@ function refreshData() {
       if (!newPrompt) { showToast('Image prompt is empty'); return; }
       var cached = aiExtractCache.get(videoId);
       if (cached) cached.imagePrompt = newPrompt;
-      var newUrl = buildPollinationsUrl(newPrompt);
+      var newUrl = buildImageUrl(newPrompt);
       /* Ensure image container exists */
       if (!imgContainer) {
         var wrap = container.querySelector('.ai-extract-image-wrap');

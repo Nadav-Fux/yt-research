@@ -7,6 +7,7 @@ import { handleScrape } from './handlers/scrape.js';
 import { handleListPrompts, handleCreatePrompt, handleUpdatePrompt, handleDeletePrompt } from './handlers/prompts.js';
 import { handleTranslate } from './handlers/translate.js';
 import { handleGroqStatus } from './handlers/groqStatus.js';
+import { handleImage } from './handlers/image.js';
 import { handleArchiveVideo, handleDeleteVideo, handleBatchArchive, handleBatchDelete } from './handlers/archive.js';
 
 export default {
@@ -93,6 +94,11 @@ export default {
         return await handleCreatePrompt(request, env);
       }
 
+      // --- Route: GET /api/image ---
+      if (method === 'GET' && pathname === '/api/image') {
+        return await handleImage(request, env);
+      }
+
       // --- Routes: PUT|DELETE /api/prompts/:id ---
       const promptMatch = pathname.match(/^\/api\/prompts\/([a-zA-Z0-9_-]+)$/);
       if (promptMatch) {
@@ -136,6 +142,7 @@ export default {
             'POST /api/ingest',
             'POST /api/scrape',
             'GET  /api/groq-status',
+            'GET  /api/image',
             'GET  /api/export',
             'GET  /api/prompts',
             'POST /api/prompts',

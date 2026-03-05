@@ -7,6 +7,9 @@ account_id = "5bf57396a7de9b1331d2ed6093af01c9"
 binding = "DATA_BUCKET"
 bucket_name = "yt-research-data"
 
+[ai]
+binding = "AI"
+
 # Secrets (set via wrangler secret put):
 # GROQ_API_KEY
 # GROQ_KEYS  (comma-separated, 3 keys for rotation)

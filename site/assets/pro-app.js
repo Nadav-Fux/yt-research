@@ -7,7 +7,7 @@
 var API = 'https://yt-research-api.nadavf.workers.dev/api';
 var N8N_WEBHOOK = 'https://n8n.74111147.xyz/webhook/yt-extract';
 var PROMPTS_API = API + '/prompts';
-var POLLINATIONS_URL = 'https://image.pollinations.ai/prompt/';
+var IMAGE_API_URL = API + '/image';
 var AUTH_TOKEN = '7bd2637b235db42353a7537918a07cbac0f3697a86df49455958414787d64363';
 
 var BUILTIN_DEFAULT_PROMPT = "You are a senior research analyst. Extract the most valuable insights from this video transcript. Structure your response as:\n\n### Key Insights\n- Most important findings and claims\n\n### Practical Takeaways\n- Actionable advice and recommendations\n\n### Notable Quotes\n- Direct quotes that capture key ideas\n\n### Summary\nA concise 2-3 sentence summary of the video's main message.\n\nBe thorough but concise. Focus on unique insights, not obvious observations.";
@@ -1510,15 +1510,15 @@ App.extract = {
     return '<p>' + s + '</p>';
   },
 
-  /* Pollinations AI image */
-  _buildPollinationsUrl: function(prompt) {
-    return POLLINATIONS_URL + encodeURIComponent(prompt) + '?width=768&height=432&nologo=true&seed=' + Math.floor(Math.random() * 100000);
+  /* Image generation via worker proxy */
+  _buildImageUrl: function(prompt, seed) {
+    return IMAGE_API_URL + '?prompt=' + encodeURIComponent(prompt) + '&seed=' + (seed || Math.floor(Math.random() * 100000));
   },
 
   _renderAIImage: function(videoId, imagePrompt) {
     if (!imagePrompt) return '<div class="ai-extract-image-wrap" data-vid="' + esc(videoId) + '"><div class="ai-extract-image-controls"><input type="text" class="ai-image-prompt-input" value="" placeholder="Describe the image you want..." aria-label="Image prompt"><button type="button" class="ai-image-retry-btn" title="Generate image">Generate</button></div></div>';
     var ep = esc(imagePrompt);
-    var imgUrl = App.extract._buildPollinationsUrl(imagePrompt);
+    var imgUrl = App.extract._buildImageUrl(imagePrompt);
     return '<div class="ai-extract-image-wrap" data-vid="' + esc(videoId) + '">' +
       '<div class="ai-extract-image-container">' +
         '<img class="ai-extract-image" src="' + imgUrl + '" alt="AI concept image" loading="lazy">' +
@@ -1542,7 +1542,7 @@ App.extract = {
       if (!newPrompt) { showToast('Image prompt is empty', 'warning'); return; }
       var cached = App.state.aiExtractCache.get(videoId);
       if (cached) cached.imagePrompt = newPrompt;
-      var newUrl = App.extract._buildPollinationsUrl(newPrompt);
+      var newUrl = App.extract._buildImageUrl(newPrompt);
       if (!imgContainer) {
         var wrap = container.querySelector('.ai-extract-image-wrap');
         if (wrap) {
