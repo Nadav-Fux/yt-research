@@ -7,6 +7,7 @@ import { handleScrape } from './handlers/scrape.js';
 import { handleListPrompts, handleCreatePrompt, handleUpdatePrompt, handleDeletePrompt } from './handlers/prompts.js';
 import { handleTranslate } from './handlers/translate.js';
 import { handleGroqStatus } from './handlers/groqStatus.js';
+import { handleArchiveVideo, handleDeleteVideo, handleBatchArchive, handleBatchDelete } from './handlers/archive.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -25,10 +26,31 @@ export default {
         return await handleListVideos(request, env);
       }
 
+      // --- Route: POST /api/videos/batch-archive ---
+      if (method === 'POST' && pathname === '/api/videos/batch-archive') {
+        return await handleBatchArchive(request, env);
+      }
+
+      // --- Route: POST /api/videos/batch-delete ---
+      if (method === 'POST' && pathname === '/api/videos/batch-delete') {
+        return await handleBatchDelete(request, env);
+      }
+
+      // --- Route: POST /api/videos/:id/archive ---
+      const archiveMatch = pathname.match(/^\/api\/videos\/([a-zA-Z0-9_-]+)\/archive$/);
+      if (method === 'POST' && archiveMatch) {
+        return await handleArchiveVideo(request, env, archiveMatch[1]);
+      }
+
       // --- Route: GET /api/videos/:id ---
       const videoMatch = pathname.match(/^\/api\/videos\/([a-zA-Z0-9_-]+)$/);
       if (method === 'GET' && videoMatch) {
         return await handleGetVideo(request, env, videoMatch[1]);
+      }
+
+      // --- Route: DELETE /api/videos/:id ---
+      if (method === 'DELETE' && videoMatch) {
+        return await handleDeleteVideo(request, env, videoMatch[1]);
       }
 
       // --- Route: POST /api/summarize ---

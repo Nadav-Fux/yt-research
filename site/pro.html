@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#08081a">
+  <title>YT Research Pro</title>
+  <link rel="icon" href="assets/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/pro-style.css">
+</head>
+<body>
+
+  <a href="#main" class="skip-link">Skip to content</a>
+
+  <header class="header">
+    <div class="header-inner">
+      <a href="pro.html" class="logo">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+          <rect x="2" y="3" width="20" height="18" rx="3" fill="url(#logoGrad)" opacity=".9"/>
+          <polygon points="10,8 10,16 16,12" fill="#fff"/>
+          <defs><linearGradient id="logoGrad" x1="0" y1="0" x2="24" y2="24"><stop offset="0%" stop-color="#ef4444"/><stop offset="100%" stop-color="#f97316"/></linearGradient></defs>
+        </svg>
+        <span class="logo-text">YT Research</span>
+        <span class="logo-pro">PRO</span>
+      </a>
+
+      <div class="header-search-wrap">
+        <svg class="header-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="search" class="header-search" placeholder="Search videos, channels, topics..." autocomplete="off">
+      </div>
+
+      <div class="header-actions">
+        <button id="api-status-btn" class="header-btn" type="button" title="API Status">
+          <span class="status-dot" id="api-status-dot"></span>
+          <span>API</span>
+        </button>
+        <span id="count" class="count-badge" title="Total videos">0</span>
+        <div class="export-dropdown">
+          <button id="export-btn" class="header-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            Export
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <div id="export-menu" class="export-menu" hidden>
+            <button data-format="json">Export JSON</button>
+            <button data-format="csv">Export CSV</button>
+            <button data-format="txt">Export All Transcripts</button>
+          </div>
+        </div>
+        <a href="index.html" class="header-btn header-btn-switch" title="Switch to Classic UI">Classic</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats Strip -->
+  <div class="stats-strip" id="stats-strip">
+    <div class="stat-cell" id="stat-total">
+      <span class="stat-cell-val" data-count="0">0</span>
+      <span class="stat-cell-label">Videos</span>
+    </div>
+    <div class="stat-cell" id="stat-topics">
+      <span class="stat-cell-val" data-count="0">0</span>
+      <span class="stat-cell-label">Topics</span>
+    </div>
+    <div class="stat-cell" id="stat-channels">
+      <span class="stat-cell-val" data-count="0">0</span>
+      <span class="stat-cell-label">Channels</span>
+    </div>
+    <div class="stat-cell" id="stat-archived">
+      <span class="stat-cell-val" data-count="0">0</span>
+      <span class="stat-cell-label">Archived</span>
+    </div>
+    <div class="stat-cell stat-cell-budget" id="stat-budget">
+      <div class="stat-cell-bar-wrap"><div class="stat-cell-bar" id="stat-budget-bar"></div></div>
+      <span class="stat-cell-label">Apify Budget</span>
+    </div>
+    <div class="stat-cell" id="stat-groq">
+      <span class="stat-cell-dots" id="stat-groq-dots"></span>
+      <span class="stat-cell-label">Groq Keys</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="scrape-section">
+        <div class="scrape-header">
+          <span class="section-label">New Scrape</span>
+        </div>
+        <div class="scrape-row">
+          <input type="text" id="scrape-topic" class="sidebar-input" placeholder="Topic to scrape..." autocomplete="off">
+          <button id="scrape-btn" class="scrape-btn" type="button" title="Scrape YouTube">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+        </div>
+        <div id="scrape-status" class="scrape-status" hidden></div>
+      </div>
+
+      <div class="sidebar-section">
+        <span class="section-label">Topics</span>
+        <nav id="topics" class="topic-nav" aria-label="Topics"></nav>
+      </div>
+
+      <div class="sidebar-section">
+        <span class="section-label">Channels</span>
+        <nav id="channels" class="channel-nav" aria-label="Channels"></nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <label class="archive-toggle" id="archive-toggle">
+          <input type="checkbox" id="show-archived">
+          <span class="archive-toggle-slider"></span>
+          <span class="archive-toggle-text">Show Archived</span>
+        </label>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main" id="main">
+      <div id="filters" class="filters" hidden></div>
+      <div id="sort-bar" class="sort-bar">
+        <span id="result-info" class="result-info"></span>
+        <div class="sort-controls">
+          <button id="select-mode-btn" class="sort-btn" type="button">Select</button>
+          <select id="sort-select" class="sort-select">
+            <option value="date">Newest</option>
+            <option value="views">Most Viewed</option>
+            <option value="likes">Most Liked</option>
+            <option value="duration">Longest</option>
+            <option value="words">Most Words</option>
+          </select>
+        </div>
+      </div>
+      <div id="cards" class="cards" aria-live="polite"></div>
+      <div id="empty" class="empty" hidden>
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" opacity=".3" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <p class="empty-title">No videos found</p>
+        <p class="empty-sub">Try adjusting your search or filters</p>
+      </div>
+      <div id="reader-view" class="reader-view" hidden>
+        <div class="reader-progress" id="reader-progress" hidden>
+          <div class="reader-progress-bar" id="reader-progress-bar"></div>
+          <span class="reader-progress-text" id="reader-progress-text">Loading transcripts...</span>
+        </div>
+        <div class="reader-search-bar" id="reader-search-bar" hidden>
+          <input type="search" id="reader-search" class="reader-search-input" placeholder="Search in transcripts..." autocomplete="off">
+          <span id="reader-search-count" class="reader-search-count"></span>
+        </div>
+        <div class="reader-layout">
+          <nav class="reader-toc" id="reader-toc" aria-label="Table of contents"></nav>
+          <div class="reader-content" id="reader-content"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- View Toggle (floating) -->
+  <div class="view-toggle-float" id="view-toggle">
+    <button class="vtf-btn active" data-view="cards" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    </button>
+    <button class="vtf-btn" data-view="reader" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
+    </button>
+  </div>
+
+  <!-- Drawer -->
+  <div id="drawer" class="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <div class="drawer-backdrop" id="drawer-backdrop"></div>
+    <div class="drawer-panel" id="drawer-panel">
+      <button id="drawer-close" class="drawer-close" type="button" aria-label="Close">&times;</button>
+      <div id="drawer-head" class="drawer-head"></div>
+      <div id="drawer-body" class="drawer-body"></div>
+      <button id="drawer-scroll-top" class="drawer-scroll-top" type="button" aria-label="Scroll to top">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 12V4M4 7l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Confirm Dialog -->
+  <div id="confirm-dialog" class="confirm-overlay" hidden>
+    <div class="confirm-backdrop"></div>
+    <div class="confirm-box">
+      <div class="confirm-icon" id="confirm-icon"></div>
+      <h3 class="confirm-title" id="confirm-title"></h3>
+      <p class="confirm-msg" id="confirm-msg"></p>
+      <div class="confirm-type-wrap" id="confirm-type-wrap" hidden>
+        <input type="text" id="confirm-type-input" class="confirm-type-input" autocomplete="off">
+      </div>
+      <div class="confirm-actions">
+        <button id="confirm-cancel" class="confirm-btn confirm-btn-cancel" type="button">Cancel</button>
+        <button id="confirm-ok" class="confirm-btn confirm-btn-ok" type="button">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="assets/pro-app.js"></script>
+</body>
+</html>
