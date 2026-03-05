@@ -1428,3 +1428,5 @@ body.pm-open {
   color: var(--green);
   font-weight: 600;
 }
+.apify-exhausted { opacity: .65; }
+.apify-exhausted .apify-plan-badge { background: rgba(239, 68, 68, .15); color: #ef4444; }

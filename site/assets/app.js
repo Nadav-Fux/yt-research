@@ -2448,31 +2448,36 @@ function refreshData() {
         if (apifyAccounts.length > 0) {
           var totalRemaining = 0;
           var totalLimit = 0;
+          var activeCount = 0;
           apifyAccounts.forEach(function(a) {
-            if (a.status === 'active') {
+            if (a.status === 'active' || a.status === 'exhausted') {
               totalRemaining += (a.remainingUsd || 0);
               totalLimit += (a.limitUsd || 0);
+              if (a.status === 'active') activeCount++;
             }
           });
-          html += '<div class="groq-pop-section-title apify-section-title">\ud83d\udd77\ufe0f Apify Scraping (' + apifyAccounts.length + ' accounts)</div>';
+          html += '<div class="groq-pop-section-title apify-section-title">\ud83d\udd77\ufe0f Apify Scraping (' + activeCount + '/' + apifyAccounts.length + ' active)</div>';
           html += '<div class="apify-summary">' +
-            '<span class="apify-summary-label">Total budget:</span>' +
-            '<span class="apify-summary-val">$' + totalRemaining.toFixed(2) + ' / $' + totalLimit.toFixed(2) + ' remaining</span>' +
+            '<span class="apify-summary-label">Total remaining:</span>' +
+            '<span class="apify-summary-val">$' + totalRemaining.toFixed(2) + ' / $' + totalLimit.toFixed(2) + '</span>' +
           '</div>';
           apifyAccounts.forEach(function(a) {
-            if (a.status !== 'active') {
-              html += '<div class="groq-key-item"><span class="groq-key-label groq-key-error">' + esc(a.label) + ' \u2014 ' + (a.error || 'invalid') + '</span></div>';
+            if (a.status === 'error') {
+              html += '<div class="groq-key-item"><span class="groq-key-label groq-key-error">' + esc(a.label) + ' \u2014 ' + (a.error || 'error') + '</span></div>';
               return;
             }
-            var usedPct = a.limitUsd > 0 ? pct(a.remainingUsd, a.limitUsd) : 0;
-            html += '<div class="groq-key-item">' +
+            var isExhausted = a.status === 'exhausted';
+            var remainPct = a.limitUsd > 0 ? pct(a.remainingUsd, a.limitUsd) : 0;
+            var statusClass = isExhausted ? 'groq-key-error' : 'groq-key-active';
+            var statusTag = isExhausted ? ' <span style="color:#ef4444;font-size:11px;font-weight:600">EXHAUSTED</span>' : '';
+            html += '<div class="groq-key-item' + (isExhausted ? ' apify-exhausted' : '') + '">' +
               '<div class="groq-key-header">' +
-                '<span class="groq-key-label groq-key-active">' + esc(a.label) + '</span>' +
+                '<span class="groq-key-label ' + statusClass + '">' + esc(a.label) + statusTag + '</span>' +
                 '<span class="apify-plan-badge">' + esc(a.plan) + '</span>' +
               '</div>' +
               '<div class="groq-key-row">' +
                 '<span class="groq-key-metric">Budget</span>' +
-                '<div class="groq-bar-wrap"><div class="groq-bar" style="width:' + usedPct + '%;background:' + barColor(usedPct) + '"></div></div>' +
+                '<div class="groq-bar-wrap"><div class="groq-bar" style="width:' + remainPct + '%;background:' + barColor(remainPct) + '"></div></div>' +
                 '<span class="groq-key-val">$' + (a.remainingUsd || 0).toFixed(2) + ' / $' + (a.limitUsd || 0).toFixed(2) + '</span>' +
               '</div>' +
               '<div class="groq-key-row">' +
@@ -2480,6 +2485,7 @@ function refreshData() {
                 '<span class="groq-key-val" style="margin-left:auto">$' + (a.usedUsd || 0).toFixed(3) + '</span>' +
               '</div>' +
               (a.lastRunCost != null ? '<div class="groq-key-reset">Last scrape cost: $' + a.lastRunCost.toFixed(4) + '</div>' : '') +
+              (a.cycleEnd ? '<div class="groq-key-reset">Resets: ' + new Date(a.cycleEnd).toLocaleDateString() + '</div>' : '') +
             '</div>';
           });
         } else {

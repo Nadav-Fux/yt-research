@@ -2,6 +2,7 @@ import { corsHeaders } from '../lib/cors.js';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const APIFY_USER_URL = 'https://api.apify.com/v2/users/me';
+const APIFY_LIMITS_URL = 'https://api.apify.com/v2/users/me/limits';
 const APIFY_RUNS_URL = 'https://api.apify.com/v2/actor-runs';
 
 /**
@@ -56,17 +57,38 @@ export async function handleGroqStatus(request, env) {
   for (let i = 0; i < apifyKeys.length; i++) {
     const key = apifyKeys[i];
     try {
-      const resp = await fetch(APIFY_USER_URL + '?token=' + key);
-      if (!resp.ok) {
-        apifyResults.push({ label: 'Account ' + (i + 1), status: 'error', httpStatus: resp.status });
+      // Fetch user info and limits in parallel
+      const [userResp, limitsResp] = await Promise.all([
+        fetch(APIFY_USER_URL + '?token=' + key),
+        fetch(APIFY_LIMITS_URL + '?token=' + key),
+      ]);
+
+      if (!userResp.ok) {
+        apifyResults.push({ label: 'Account ' + (i + 1), status: 'error', httpStatus: userResp.status });
         continue;
       }
-      const data = await resp.json();
-      const u = data.data || data;
+
+      const userData = await userResp.json();
+      const u = userData.data || userData;
       const plan = u.plan || {};
-      const usage = u.usage || {};
-      const used = usage.monthlyUsageCreditsUsd || 0;
-      const limit = plan.monthlyUsageCreditsUsd || 0;
+
+      // Real usage from /limits endpoint
+      let usedUsd = 0, limitUsd = plan.maxMonthlyUsageUsd || 5, cycleStart = null, cycleEnd = null;
+      if (limitsResp.ok) {
+        const limitsData = await limitsResp.json();
+        const ld = limitsData.data || limitsData;
+        usedUsd = (ld.current || {}).monthlyUsageUsd || 0;
+        limitUsd = (ld.limits || {}).maxMonthlyUsageUsd || limitUsd;
+        const cycle = ld.monthlyUsageCycle || {};
+        cycleStart = cycle.startAt || null;
+        cycleEnd = cycle.endAt || null;
+      }
+
+      // Check if account is actually disabled (over limit)
+      const features = u.effectivePlatformFeatures || {};
+      const actorsFeature = features.ACTORS || {};
+      const isDisabled = actorsFeature.isEnabled === false;
+      const disabledReason = actorsFeature.disabledReasonType || null;
 
       // Get last run cost
       let lastRunCost = null;
@@ -81,11 +103,14 @@ export async function handleGroqStatus(request, env) {
 
       apifyResults.push({
         label: 'Account ' + (i + 1) + ' (' + (u.username || '?') + ')',
-        status: 'active',
+        status: isDisabled ? 'exhausted' : 'active',
+        disabledReason,
         plan: plan.id || 'FREE',
-        usedUsd: used,
-        limitUsd: limit,
-        remainingUsd: limit - used,
+        usedUsd: Math.round(usedUsd * 1000) / 1000,
+        limitUsd,
+        remainingUsd: Math.round(Math.max(0, limitUsd - usedUsd) * 1000) / 1000,
+        cycleStart,
+        cycleEnd,
         lastRunCost,
       });
     } catch (err) {
