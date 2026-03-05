@@ -2352,6 +2352,11 @@ function refreshData() {
   'use strict';
   var API_URL = 'https://yt-research-api.nadavf.workers.dev/api';
 
+  function _esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
   function fmtTokens(n) {
     if (n == null || n === '') return '?';
     n = Number(n);
@@ -2373,8 +2378,10 @@ function refreshData() {
 
   function initBtn() {
     var btn = document.getElementById('api-status-btn');
-    if (!btn) return;
-    btn.addEventListener('click', function() {
+    if (!btn || btn._bound) return;
+    btn._bound = true;
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
       var existing = document.querySelector('.api-status-dropdown');
       if (existing) { existing.remove(); return; }
       showDropdown(btn);
@@ -2392,7 +2399,7 @@ function refreshData() {
     dd.style.right = (window.innerWidth - rect.right) + 'px';
 
     function outsideClick(e) {
-      if (!dd.contains(e.target) && e.target !== anchor) {
+      if (!dd.contains(e.target) && !anchor.contains(e.target)) {
         dd.remove();
         document.removeEventListener('mousedown', outsideClick, true);
       }
@@ -2416,7 +2423,7 @@ function refreshData() {
             var statusClass = k.status === 'active' ? 'groq-key-active' : 'groq-key-error';
             html += '<div class="groq-key-item">' +
               '<div class="groq-key-header">' +
-                '<span class="groq-key-label ' + statusClass + '">' + esc(k.label) + '</span>' +
+                '<span class="groq-key-label ' + statusClass + '">' + _esc(k.label) + '</span>' +
                 '<span class="groq-key-status-dot ' + statusClass + '"></span>' +
               '</div>' +
               '<div class="groq-key-row">' +
@@ -2453,7 +2460,7 @@ function refreshData() {
           '</div>';
           apifyAccounts.forEach(function(a) {
             if (a.status === 'error') {
-              html += '<div class="groq-key-item"><span class="groq-key-label groq-key-error">' + esc(a.label) + ' — ' + (a.error || 'error') + '</span></div>';
+              html += '<div class="groq-key-item"><span class="groq-key-label groq-key-error">' + _esc(a.label) + ' — ' + (a.error || 'error') + '</span></div>';
               return;
             }
             var isExhausted = a.status === 'exhausted';
@@ -2462,7 +2469,7 @@ function refreshData() {
             var statusTag = isExhausted ? ' <span style="color:#ef4444;font-size:10px;font-weight:700">EXHAUSTED</span>' : '';
             html += '<div class="groq-key-item' + (isExhausted ? ' apify-exhausted' : '') + '">' +
               '<div class="groq-key-header">' +
-                '<span class="groq-key-label ' + statusClass + '">' + esc(a.label) + statusTag + '</span>' +
+                '<span class="groq-key-label ' + statusClass + '">' + _esc(a.label) + statusTag + '</span>' +
               '</div>' +
               '<div class="groq-key-row">' +
                 '<span class="groq-key-metric">Budget</span>' +
@@ -2487,7 +2494,7 @@ function refreshData() {
         dd.innerHTML = html;
       })
       .catch(function(err) {
-        dd.innerHTML = '<div class="groq-pop-error">Failed: ' + esc(err.message) + '</div>';
+        dd.innerHTML = '<div class="groq-pop-error">Failed: ' + _esc(err.message) + '</div>';
       });
   }
 

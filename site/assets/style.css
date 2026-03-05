@@ -1282,21 +1282,21 @@ body.pm-open {
 
 /* ── API Status (header button + dropdown) ── */
 .api-status-btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  background: rgba(255,255,255,.06);
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: var(--text-dim);
-  font-family: var(--font);
-  font-size: .78rem;
+  color: var(--text);
+  font: inherit;
+  font-size: .85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all .15s;
+  transition: all .2s;
 }
-.api-status-btn:hover { background: rgba(255,255,255,.1); color: var(--text); }
+.api-status-btn:hover { background: var(--surface2); border-color: var(--yellow); color: var(--yellow); transform: translateY(-1px); }
 .api-status-dot {
   display: inline-block;
   width: 7px;
