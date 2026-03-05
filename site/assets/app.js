@@ -2347,11 +2347,10 @@ function refreshData() {
   };
 })();
 
-/* ── API Status Panel (sidebar) ── */
+/* ── API Status (header dropdown) ── */
 (function() {
   'use strict';
   var API_URL = 'https://yt-research-api.nadavf.workers.dev/api';
-  var loaded = false;
 
   function fmtTokens(n) {
     if (n == null || n === '') return '?';
@@ -2372,31 +2371,41 @@ function refreshData() {
     return 'var(--accent)';
   }
 
-  function initPanel() {
-    var panel = document.getElementById('api-status-panel');
-    var toggle = document.getElementById('api-status-toggle');
-    var body = document.getElementById('api-status-body');
-    if (!panel || !toggle || !body) return;
-
-    toggle.addEventListener('click', function() {
-      panel.classList.toggle('open');
-      if (panel.classList.contains('open') && !loaded) {
-        loadStatus(body);
-      }
+  function initBtn() {
+    var btn = document.getElementById('api-status-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      var existing = document.querySelector('.api-status-dropdown');
+      if (existing) { existing.remove(); return; }
+      showDropdown(btn);
     });
   }
 
-  function loadStatus(container) {
-    container.innerHTML = '<div class="groq-pop-loading"><span class="spinner"></span> Loading...</div>';
+  function showDropdown(anchor) {
+    var dd = document.createElement('div');
+    dd.className = 'api-status-dropdown';
+    dd.innerHTML = '<div class="groq-pop-loading"><span class="spinner"></span> Loading...</div>';
+    document.body.appendChild(dd);
+
+    var rect = anchor.getBoundingClientRect();
+    dd.style.top = (rect.bottom + 6) + 'px';
+    dd.style.right = (window.innerWidth - rect.right) + 'px';
+
+    function outsideClick(e) {
+      if (!dd.contains(e.target) && e.target !== anchor) {
+        dd.remove();
+        document.removeEventListener('mousedown', outsideClick, true);
+      }
+    }
+    setTimeout(function() { document.addEventListener('mousedown', outsideClick, true); }, 10);
 
     fetch(API_URL + '/groq-status')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.error) throw new Error(data.error);
-        loaded = true;
         var html = '';
 
-        /* ── Groq Section ── */
+        /* ── Groq ── */
         var groq = data.groq || {};
         var groqKeys = groq.keys || [];
         if (groqKeys.length > 0) {
@@ -2424,13 +2433,12 @@ function refreshData() {
           });
         }
 
-        /* ── Apify Section ── */
+        /* ── Apify ── */
         var apify = data.apify || {};
         var apifyAccounts = apify.accounts || [];
+        var activeCount = 0;
         if (apifyAccounts.length > 0) {
-          var totalRemaining = 0;
-          var totalLimit = 0;
-          var activeCount = 0;
+          var totalRemaining = 0, totalLimit = 0;
           apifyAccounts.forEach(function(a) {
             if (a.status === 'active' || a.status === 'exhausted') {
               totalRemaining += (a.remainingUsd || 0);
@@ -2467,7 +2475,7 @@ function refreshData() {
           });
         }
 
-        // Update the status dot color
+        // Update header dot
         var dot = document.getElementById('api-status-dot');
         if (dot) {
           var allOk = activeCount === apifyAccounts.length && groqKeys.every(function(k) { return k.status === 'active'; });
@@ -2476,13 +2484,13 @@ function refreshData() {
         }
 
         html += '<div class="groq-pop-time">' + new Date(data.timestamp).toLocaleTimeString() + '</div>';
-        container.innerHTML = html;
+        dd.innerHTML = html;
       })
       .catch(function(err) {
-        container.innerHTML = '<div class="groq-pop-error">Failed: ' + esc(err.message) + '</div>';
+        dd.innerHTML = '<div class="groq-pop-error">Failed: ' + esc(err.message) + '</div>';
       });
   }
 
-  document.addEventListener('DOMContentLoaded', function() { setTimeout(initPanel, 300); });
-  initPanel();
+  document.addEventListener('DOMContentLoaded', function() { setTimeout(initBtn, 200); });
+  initBtn();
 })();

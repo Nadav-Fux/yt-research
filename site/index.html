@@ -30,6 +30,9 @@
           <button class="view-toggle-btn active" data-view="cards" type="button">Cards</button>
           <button class="view-toggle-btn" data-view="reader" type="button">Reader</button>
         </div>
+        <button id="api-status-btn" class="api-status-btn" type="button" title="API Status & Costs">
+          <span class="api-status-dot" id="api-status-dot"></span> API
+        </button>
         <span id="count" class="count" title="Total videos">0</span>
         <div class="export-dropdown">
           <button id="export-btn" class="export-btn" type="button" aria-haspopup="true" aria-expanded="false">
@@ -60,15 +63,6 @@
           </button>
         </div>
         <div id="scrape-status" class="scrape-status" hidden></div>
-      </div>
-
-      <div class="api-status-panel" id="api-status-panel">
-        <button class="api-status-toggle" id="api-status-toggle" type="button">
-          <span class="api-status-dot" id="api-status-dot"></span>
-          <span>API Status</span>
-          <svg class="api-status-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        </button>
-        <div class="api-status-body" id="api-status-body"></div>
       </div>
 
       <nav id="topics" class="cat-nav" aria-label="Topics"></nav>

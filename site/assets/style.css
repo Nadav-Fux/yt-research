@@ -1280,47 +1280,47 @@ body.pm-open {
   cursor: pointer;
 }
 
-/* ── API Status Panel (sidebar) ── */
-.api-status-panel {
-  margin-top: 12px;
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
-}
-.api-status-toggle {
-  display: flex;
+/* ── API Status (header button + dropdown) ── */
+.api-status-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 8px 10px;
-  background: none;
-  border: none;
+  gap: 5px;
+  padding: 5px 12px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--text-dim);
   font-family: var(--font);
   font-size: .78rem;
   font-weight: 600;
   cursor: pointer;
-  transition: color .15s;
-  border-radius: 6px;
+  transition: all .15s;
 }
-.api-status-toggle:hover { color: var(--text); background: var(--surface); }
+.api-status-btn:hover { background: rgba(255,255,255,.1); color: var(--text); }
 .api-status-dot {
-  width: 8px;
-  height: 8px;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--text-dim);
-  flex-shrink: 0;
   transition: background .3s;
 }
 .api-status-dot.dot-ok { background: var(--green); }
 .api-status-dot.dot-warn { background: var(--yellow); }
 .api-status-dot.dot-bad { background: var(--accent); }
-.api-status-chevron { transition: transform .2s; flex-shrink: 0; margin-left: auto; }
-.api-status-panel.open .api-status-chevron { transform: rotate(180deg); }
-.api-status-body {
-  display: none;
-  padding: 4px 0 8px;
+.api-status-dropdown {
+  position: fixed;
+  z-index: 300;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  width: 340px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 48px rgba(0,0,0,.5);
+  animation: aiDropIn .15s ease-out;
 }
-.api-status-panel.open .api-status-body { display: block; }
 .groq-pop-loading, .groq-pop-error {
   font-size: .78rem;
   color: var(--text-dim);
