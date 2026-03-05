@@ -1392,3 +1392,39 @@ body.pm-open {
   color: var(--text-dim);
   margin-top: 4px;
 }
+
+/* Groq status sections */
+.groq-pop-section-title {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--yellow);
+  margin-bottom: 8px;
+  margin-top: 4px;
+}
+.groq-pop-section-title.apify-section-title {
+  color: var(--green);
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.apify-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(34, 197, 94, .08);
+  border: 1px solid rgba(34, 197, 94, .2);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-size: .78rem;
+}
+.apify-summary-label { color: var(--text-dim); }
+.apify-summary-val { color: var(--green); font-weight: 600; }
+.apify-plan-badge {
+  font-size: .65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, .15);
+  color: var(--green);
+  font-weight: 600;
+}
