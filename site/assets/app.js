@@ -2347,9 +2347,11 @@ function refreshData() {
   };
 })();
 
-/* ── API Status Widget (Groq + Apify) ── */
+/* ── API Status Panel (sidebar) ── */
 (function() {
   'use strict';
+  var API_URL = 'https://yt-research-api.nadavf.workers.dev/api';
+  var loaded = false;
 
   function fmtTokens(n) {
     if (n == null || n === '') return '?';
@@ -2370,54 +2372,35 @@ function refreshData() {
     return 'var(--accent)';
   }
 
-  function injectStatusButton() {
-    var searchBar = document.getElementById('reader-search-bar');
-    if (!searchBar || searchBar.querySelector('.groq-status-btn')) return;
+  function initPanel() {
+    var panel = document.getElementById('api-status-panel');
+    var toggle = document.getElementById('api-status-toggle');
+    var body = document.getElementById('api-status-body');
+    if (!panel || !toggle || !body) return;
 
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'groq-status-btn';
-    btn.title = 'API Status & Costs';
-    btn.setAttribute('aria-label', 'View API quotas and costs');
-    btn.innerHTML = '\u26a1 API';
-    searchBar.appendChild(btn);
-
-    btn.addEventListener('click', function() {
-      var existing = document.querySelector('.groq-status-popover');
-      if (existing) { existing.remove(); return; }
-      showStatusPopover(btn);
+    toggle.addEventListener('click', function() {
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open') && !loaded) {
+        loadStatus(body);
+      }
     });
   }
 
-  function showStatusPopover(anchor) {
-    var pop = document.createElement('div');
-    pop.className = 'groq-status-popover';
-    pop.innerHTML = '<div class="groq-pop-title">\u26a1 API Status</div><div class="groq-pop-loading"><span class="spinner"></span> Loading...</div>';
-    document.body.appendChild(pop);
+  function loadStatus(container) {
+    container.innerHTML = '<div class="groq-pop-loading"><span class="spinner"></span> Loading...</div>';
 
-    var rect = anchor.getBoundingClientRect();
-    pop.style.top = (rect.bottom + 8) + 'px';
-    pop.style.right = (window.innerWidth - rect.right) + 'px';
-
-    function outsideClick(e) {
-      if (!pop.contains(e.target) && e.target !== anchor) {
-        pop.remove();
-        document.removeEventListener('mousedown', outsideClick, true);
-      }
-    }
-    setTimeout(function() { document.addEventListener('mousedown', outsideClick, true); }, 10);
-
-    fetch(API + '/groq-status')
+    fetch(API_URL + '/groq-status')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.error) throw new Error(data.error);
+        loaded = true;
         var html = '';
 
         /* ── Groq Section ── */
         var groq = data.groq || {};
         var groqKeys = groq.keys || [];
         if (groqKeys.length > 0) {
-          html += '<div class="groq-pop-section-title">\u26a1 Groq Translation (' + groqKeys.length + ' keys)</div>';
+          html += '<div class="groq-pop-section-title">Groq (' + groqKeys.length + ' keys)</div>';
           groqKeys.forEach(function(k) {
             var tokPct = pct(k.tokensRemaining, k.tokensLimit);
             var reqPct = pct(k.requestsRemaining, k.requestsLimit);
@@ -2430,14 +2413,13 @@ function refreshData() {
               '<div class="groq-key-row">' +
                 '<span class="groq-key-metric">Tokens</span>' +
                 '<div class="groq-bar-wrap"><div class="groq-bar" style="width:' + tokPct + '%;background:' + barColor(tokPct) + '"></div></div>' +
-                '<span class="groq-key-val">' + fmtTokens(k.tokensRemaining) + ' / ' + fmtTokens(k.tokensLimit) + '</span>' +
+                '<span class="groq-key-val">' + fmtTokens(k.tokensRemaining) + '/' + fmtTokens(k.tokensLimit) + '</span>' +
               '</div>' +
               '<div class="groq-key-row">' +
-                '<span class="groq-key-metric">Requests</span>' +
+                '<span class="groq-key-metric">Reqs</span>' +
                 '<div class="groq-bar-wrap"><div class="groq-bar" style="width:' + reqPct + '%;background:' + barColor(reqPct) + '"></div></div>' +
-                '<span class="groq-key-val">' + fmtTokens(k.requestsRemaining) + ' / ' + fmtTokens(k.requestsLimit) + '</span>' +
+                '<span class="groq-key-val">' + fmtTokens(k.requestsRemaining) + '/' + fmtTokens(k.requestsLimit) + '</span>' +
               '</div>' +
-              (k.tokensReset ? '<div class="groq-key-reset">Resets: ' + esc(k.tokensReset) + '</div>' : '') +
             '</div>';
           });
         }
@@ -2456,56 +2438,51 @@ function refreshData() {
               if (a.status === 'active') activeCount++;
             }
           });
-          html += '<div class="groq-pop-section-title apify-section-title">\ud83d\udd77\ufe0f Apify Scraping (' + activeCount + '/' + apifyAccounts.length + ' active)</div>';
+          html += '<div class="groq-pop-section-title apify-section-title">Apify (' + activeCount + '/' + apifyAccounts.length + ' active)</div>';
           html += '<div class="apify-summary">' +
-            '<span class="apify-summary-label">Total remaining:</span>' +
+            '<span class="apify-summary-label">Remaining:</span>' +
             '<span class="apify-summary-val">$' + totalRemaining.toFixed(2) + ' / $' + totalLimit.toFixed(2) + '</span>' +
           '</div>';
           apifyAccounts.forEach(function(a) {
             if (a.status === 'error') {
-              html += '<div class="groq-key-item"><span class="groq-key-label groq-key-error">' + esc(a.label) + ' \u2014 ' + (a.error || 'error') + '</span></div>';
+              html += '<div class="groq-key-item"><span class="groq-key-label groq-key-error">' + esc(a.label) + ' — ' + (a.error || 'error') + '</span></div>';
               return;
             }
             var isExhausted = a.status === 'exhausted';
             var remainPct = a.limitUsd > 0 ? pct(a.remainingUsd, a.limitUsd) : 0;
             var statusClass = isExhausted ? 'groq-key-error' : 'groq-key-active';
-            var statusTag = isExhausted ? ' <span style="color:#ef4444;font-size:11px;font-weight:600">EXHAUSTED</span>' : '';
+            var statusTag = isExhausted ? ' <span style="color:#ef4444;font-size:10px;font-weight:700">EXHAUSTED</span>' : '';
             html += '<div class="groq-key-item' + (isExhausted ? ' apify-exhausted' : '') + '">' +
               '<div class="groq-key-header">' +
                 '<span class="groq-key-label ' + statusClass + '">' + esc(a.label) + statusTag + '</span>' +
-                '<span class="apify-plan-badge">' + esc(a.plan) + '</span>' +
               '</div>' +
               '<div class="groq-key-row">' +
                 '<span class="groq-key-metric">Budget</span>' +
                 '<div class="groq-bar-wrap"><div class="groq-bar" style="width:' + remainPct + '%;background:' + barColor(remainPct) + '"></div></div>' +
-                '<span class="groq-key-val">$' + (a.remainingUsd || 0).toFixed(2) + ' / $' + (a.limitUsd || 0).toFixed(2) + '</span>' +
+                '<span class="groq-key-val">$' + (a.usedUsd || 0).toFixed(2) + '/$' + (a.limitUsd || 0).toFixed(0) + '</span>' +
               '</div>' +
-              '<div class="groq-key-row">' +
-                '<span class="groq-key-metric">Used</span>' +
-                '<span class="groq-key-val" style="margin-left:auto">$' + (a.usedUsd || 0).toFixed(3) + '</span>' +
-              '</div>' +
-              (a.lastRunCost != null ? '<div class="groq-key-reset">Last scrape cost: $' + a.lastRunCost.toFixed(4) + '</div>' : '') +
+              (a.lastRunCost != null ? '<div class="groq-key-reset">Last scrape: $' + a.lastRunCost.toFixed(4) + '</div>' : '') +
               (a.cycleEnd ? '<div class="groq-key-reset">Resets: ' + new Date(a.cycleEnd).toLocaleDateString() + '</div>' : '') +
             '</div>';
           });
-        } else {
-          html += '<div class="groq-pop-section-title apify-section-title">\ud83d\udd77\ufe0f Apify Scraping</div>';
-          html += '<div class="groq-pop-error">No Apify keys configured</div>';
         }
 
-        html += '<div class="groq-pop-time">Updated: ' + new Date(data.timestamp).toLocaleTimeString() + '</div>';
-        pop.innerHTML = html;
+        // Update the status dot color
+        var dot = document.getElementById('api-status-dot');
+        if (dot) {
+          var allOk = activeCount === apifyAccounts.length && groqKeys.every(function(k) { return k.status === 'active'; });
+          var allBad = activeCount === 0;
+          dot.className = 'api-status-dot ' + (allOk ? 'dot-ok' : (allBad ? 'dot-bad' : 'dot-warn'));
+        }
+
+        html += '<div class="groq-pop-time">' + new Date(data.timestamp).toLocaleTimeString() + '</div>';
+        container.innerHTML = html;
       })
       .catch(function(err) {
-        pop.innerHTML = '<div class="groq-pop-title">\u26a1 API Status</div><div class="groq-pop-error">Failed: ' + esc(err.message) + '</div>';
+        container.innerHTML = '<div class="groq-pop-error">Failed: ' + esc(err.message) + '</div>';
       });
   }
 
-  var readerContent = document.getElementById('reader-content');
-  if (readerContent) {
-    var obs = new MutationObserver(injectStatusButton);
-    obs.observe(readerContent, { childList: true });
-  }
-  document.addEventListener('DOMContentLoaded', function() { setTimeout(injectStatusButton, 700); });
-  injectStatusButton();
+  document.addEventListener('DOMContentLoaded', function() { setTimeout(initPanel, 300); });
+  initPanel();
 })();
