@@ -8,6 +8,7 @@ import { handleListPrompts, handleCreatePrompt, handleUpdatePrompt, handleDelete
 import { handleTranslate } from './handlers/translate.js';
 import { handleGroqStatus } from './handlers/groqStatus.js';
 import { handleImage } from './handlers/image.js';
+import { handleFetchVideo } from './handlers/fetch-video.js';
 import { handleArchiveVideo, handleDeleteVideo, handleBatchArchive, handleBatchDelete } from './handlers/archive.js';
 
 export default {
@@ -79,6 +80,11 @@ export default {
         return await handleExport(request, env);
       }
 
+      // --- Route: POST /api/fetch-video ---
+      if (method === 'POST' && pathname === '/api/fetch-video') {
+        return await handleFetchVideo(request, env);
+      }
+
       // --- Route: POST /api/scrape ---
       if (method === 'POST' && pathname === '/api/scrape') {
         return await handleScrape(request, env);
@@ -140,6 +146,7 @@ export default {
             'POST /api/summarize',
             'POST /api/translate',
             'POST /api/ingest',
+            'POST /api/fetch-video',
             'POST /api/scrape',
             'GET  /api/groq-status',
             'GET  /api/image',

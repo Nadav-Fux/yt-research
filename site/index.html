@@ -67,6 +67,17 @@
         <div id="scrape-status" class="scrape-status" hidden></div>
       </div>
 
+      <div class="scrape-section">
+        <label for="fetch-url" class="scrape-label">Fetch Single Video</label>
+        <div class="scrape-row">
+          <input type="text" id="fetch-url" class="search-input" placeholder="Paste YouTube URL..." autocomplete="off">
+          <button id="fetch-btn" class="scrape-btn" type="button" title="Fetch transcript for this video">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+        <div id="fetch-status" class="scrape-status" hidden></div>
+      </div>
+
       <nav id="topics" class="cat-nav" aria-label="Topics"></nav>
       <nav id="channels" class="channel-nav" aria-label="Channels"></nav>
     </aside>

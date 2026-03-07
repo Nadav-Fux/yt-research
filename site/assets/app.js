@@ -74,6 +74,9 @@ var $exportMenu = $('export-menu');
 var $scrapeTopic = $('scrape-topic');
 var $scrapeBtn   = $('scrape-btn');
 var $scrapeStatus = $('scrape-status');
+var $fetchUrl    = $('fetch-url');
+var $fetchBtn    = $('fetch-btn');
+var $fetchStatus = $('fetch-status');
 
 /* ── Boot ── */
 function init() {
@@ -619,6 +622,14 @@ function wireEvents() {
     });
   }
 
+  // Fetch single video button
+  if ($fetchBtn && $fetchUrl) {
+    $fetchBtn.addEventListener('click', startFetchVideo);
+    $fetchUrl.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') startFetchVideo();
+    });
+  }
+
   // Drawer scroll-to-top
   if ($dPanel && $dScrollTop) {
     $dPanel.addEventListener('scroll', function() {
@@ -704,6 +715,91 @@ function refreshData() {
       $scrapeStatus.className = 'scrape-status error';
       $scrapeStatus.textContent = 'Failed to refresh data';
     });
+}
+
+/* ── Fetch Single Video ── */
+function startFetchVideo() {
+  var url = $fetchUrl.value.trim();
+  if (!url) { $fetchUrl.focus(); return; }
+
+  if (!/youtube\.com\/watch\?v=|youtu\.be\//.test(url)) {
+    $fetchStatus.hidden = false;
+    $fetchStatus.className = 'scrape-status error';
+    $fetchStatus.textContent = 'Please paste a valid YouTube URL';
+    return;
+  }
+
+  $fetchBtn.disabled = true;
+  $fetchStatus.hidden = false;
+  $fetchStatus.className = 'scrape-status loading';
+  $fetchStatus.textContent = '';
+  var spinner = document.createElement('span');
+  spinner.className = 'spinner';
+  $fetchStatus.appendChild(spinner);
+  $fetchStatus.appendChild(document.createTextNode(' Fetching transcript... This may take up to 2 minutes.'));
+
+  fetch(API + '/fetch-video', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.error) throw new Error(data.error);
+    $fetchBtn.disabled = false;
+
+    if (data.status === 'already_exists') {
+      $fetchStatus.className = 'scrape-status success';
+      $fetchStatus.textContent = 'Video already in library.';
+      openDrawerForVideo(data.video.id);
+      return;
+    }
+
+    var msg = data.message || 'Video fetched';
+    $fetchStatus.className = 'scrape-status success';
+    $fetchStatus.textContent = '';
+    $fetchStatus.appendChild(document.createTextNode(msg + ' '));
+    var viewBtn = document.createElement('button');
+    viewBtn.className = 'scrape-refresh-btn';
+    viewBtn.type = 'button';
+    viewBtn.textContent = 'View';
+    $fetchStatus.appendChild(viewBtn);
+
+    if (data.video) {
+      allVideos.unshift(data.video);
+      buildTopics();
+      buildChannels();
+      render();
+      viewBtn.addEventListener('click', function() {
+        openDrawerForVideo(data.video.id);
+      });
+    }
+
+    $fetchUrl.value = '';
+  })
+  .catch(function(err) {
+    $fetchStatus.className = 'scrape-status error';
+    $fetchStatus.textContent = 'Failed: ' + (err.message || 'Unknown error');
+    $fetchBtn.disabled = false;
+  });
+}
+
+function openDrawerForVideo(videoId) {
+  var card = document.querySelector('[data-id="' + videoId + '"]');
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.click();
+  } else {
+    activeFilter = null;
+    channelFilter = null;
+    searchTerm = '';
+    if ($search) $search.value = '';
+    render();
+    setTimeout(function() {
+      var c = document.querySelector('[data-id="' + videoId + '"]');
+      if (c) { c.scrollIntoView({ behavior: 'smooth', block: 'center' }); c.click(); }
+    }, 100);
+  }
 }
 
 /* ── Reader View ── */
