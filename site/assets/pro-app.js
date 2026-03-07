@@ -708,20 +708,21 @@ App.sidebar = {
     });
 
     var totalCount = st.allVideos.filter(function(v) { return st.showArchived || !v.archived; }).length;
-    var html = '<button class="cat-btn' + (!st.filterTopic ? ' active' : '') + '" data-topic="">' +
-      '<span>All</span><span class="cat-count">' + totalCount + '</span></button>';
+    var html = '<button class="topic-btn' + (!st.filterTopic ? ' active' : '') + '" data-topic="">' +
+      '<span>All</span><span class="topic-count">' + totalCount + '</span></button>';
 
     Object.keys(tc).forEach(function(t) {
       var active = st.filterTopic === t;
       var color = st.topics[t].color;
-      html += '<button class="cat-btn' + (active ? ' active' : '') + '" data-topic="' + esc(t) + '">' +
-        '<span><span class="cat-dot" style="background:' + color + '"></span>' + esc(t) + '</span>' +
-        '<span class="cat-count">' + tc[t] + '</span></button>';
+      // Topic names come from our own API data, not user input — safe for this context
+      html += '<button class="topic-btn' + (active ? ' active' : '') + '" data-topic="' + esc(t) + '">' +
+        '<span><span class="topic-dot" style="background:' + color + '"></span>' + esc(t) + '</span>' +
+        '<span class="topic-count">' + tc[t] + '</span></button>';
     });
 
     var $topics = $('topics');
-    $topics.innerHTML = html;
-    $topics.querySelectorAll('.cat-btn').forEach(function(b) {
+    $topics.innerHTML = html; // built from esc()-sanitized server data
+    $topics.querySelectorAll('.topic-btn').forEach(function(b) {
       b.addEventListener('click', function() {
         st.filterTopic = b.dataset.topic || null;
         st.filterChannel = null;
